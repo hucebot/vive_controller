@@ -1,0 +1,1 @@
+docker build -t ros1_vive_controller -f develROS2.Dockerfile .
