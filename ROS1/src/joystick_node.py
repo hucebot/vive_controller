@@ -39,7 +39,7 @@ class JoystickNode:
         rospy.init_node('joystick_node', anonymous=True)
 
         self.position_publisher = rospy.Publisher('/dxl_input/pos_right', PoseStamped, queue_size=10)
-        self.gripper_publisher = rospy.Publisher('joystick_gripper', PointStamped, queue_size=10)
+        self.gripper_publisher = rospy.Publisher('/dxl_input/gripper_right', PointStamped, queue_size=10)
         self.marker_publisher = rospy.Publisher('joystick_marker', Marker, queue_size=10)
 
         self.v = triad_openvr.triad_openvr()
@@ -189,8 +189,6 @@ class JoystickNode:
                     )
 
                     if trackpad_pressed:
-                        self.pose_msg.header.frame_id = "ci/world"
-                        self.pose_msg.header.stamp = rospy.Time.now()
                         self.pose_msg.pose.position.x = filtered_pose_y
                         self.pose_msg.pose.position.y = -filtered_pose_x
                         self.pose_msg.pose.position.z = filtered_pose_z
@@ -198,7 +196,15 @@ class JoystickNode:
                         self.pose_msg.pose.orientation.y = filtered_q[1]
                         self.pose_msg.pose.orientation.z = filtered_q[2]
                         self.pose_msg.pose.orientation.w = filtered_q[3]
+                        self.pose_msg.header.frame_id = "ci/world"
+                        self.pose_msg.header.stamp = rospy.Time.now()
                         self.position_publisher.publish(self.pose_msg)
+
+                        self.gripper_msg.header = self.pose_msg.header
+                        self.gripper_msg.point.x = trigger_value
+                        self.gripper_msg.point.y = 0
+                        self.gripper_msg.point.z = 0
+                        self.gripper_publisher.publish(self.gripper_msg)
 
                     self.publish_axes_marker("ci/world", self.pose_msg.pose)
 
