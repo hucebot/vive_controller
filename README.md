@@ -4,7 +4,7 @@
 https://opensource.org/licenses/BSD-3-Clause)
 [![Ros Version](https://img.shields.io/badge/ROS1-Noetic-green)](
 https://docs.ros.org/en/noetic/index.html)
-[![Ros Version](https://img.shields.io/badge/ROS2-Humble-green)](
+[![Ros Version](https://img.shields.io/badge/ROS2-Humble-red)](
 https://docs.ros.org/en/humble/index.html)
 
 | Control Cartesio - RVIZ                                | Control Real Robot                     |
@@ -18,6 +18,14 @@ https://docs.ros.org/en/humble/index.html)
   - [Installation](#installation)
     - [From Docker](#from-docker)
 - [Usage](#usage)
+  - [Reference Frames](#reference-frames)
+  - [Steam VR Instructions](#steam-vr-instructions)
+    - [Install Steam](#install-steam)
+    - [Connect Devices](#connect-devices)
+  - [Python API](#python-api)
+  - [ROS](#ros)
+    - [ROS1](#ros1)
+    <!---- [ROS2](#ros2) -->
 
 
 # Get Started
@@ -28,9 +36,10 @@ The following dependencies are required to use this package:
 - Docker
 - NVIDIA Container Toolkit (if you are using an NVIDIA GPU)
 - SteamVR
-- Vive Tracker
-- Vive Joystick
-- Vive Base Station
+- **Hardware**:
+  - Vive Tracker (optional)
+  - Vive Joystick (optional)
+  - Vive Base Station (mandatory, at least one)
 
 ## Installation
 
@@ -41,18 +50,21 @@ The easiest way to get started is to use the provided Docker image. You can find
 sh build_ros1.sh
 ```
 
-```bash
+<!--- TODO
+``bash
 sh build_ros2.sh
 ```
-
+-->
 To run the development container, use the following command:
 
 ```bash
 sh run_ros1_dev_docker.sh
 ```
+<!--- TODO
 ```bash
 sh run_ros2_dev_docker.sh
 ```
+-->
 
 # Usage
 
@@ -61,25 +73,38 @@ sh run_ros2_dev_docker.sh
 TODO
 
 ## Steam VR Instructions
-TODO
+### Install Steam
+The easiest way to install Steam is to install through a command line. To do this, run the following command:
+```bash
+sudo apt install steam
+```
 
-## Connect to the Vive Joystick
-TODO
+Once Steam is installed, open it and log in with your account. If you don't have an account, you can create one for free. Then, go to the Steam Store and search for SteamVR. Install it.
 
-## Connect to the Vive Tracker
-TODO
+### Connect Devices
+Once SteamVR is installed, open it and go to the settings. In the settings, go the paired devices and pair your Vive Tracker and Vive Joystick. You can also pair your Vive Base Station if you have one.
+Once the devices are paired, you will see a small window with the devices and their status. Make sure that all devices are connected. Finally, you can close SteamVR.
 
-## ROS LAUNCH
+
+## Python API
+To try the Python API, you can go to the python folder and run the following command:
+```bash
+python3 test_vive_controller.py
+```
+This will show the pose of the Vive Joystick in the terminal.
+
+## ROS
 
 ### ROS1
 TODO
 ```bash
 
 ```
-
+<!--- TODO
 ### ROS2
 TODO
 ```bash
 
 ```
+-->
 
