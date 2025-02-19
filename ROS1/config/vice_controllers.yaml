@@ -1,0 +1,9 @@
+controller_1:
+  name: right_controller
+  serial: LHR-9ABF6D66
+  type: controller
+
+controller_2:
+  name: left_controller
+  serial: LHR-21C1BC92
+  type: controller

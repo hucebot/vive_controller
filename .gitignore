@@ -1,1 +1,5 @@
+##### Python Files #####
 *.pyc
+
+##### VSCode Files #####
+.vscode/

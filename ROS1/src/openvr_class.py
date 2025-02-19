@@ -2,14 +2,9 @@ import time
 import sys
 import openvr
 import math
-import json
+import yaml
 
 from functools import lru_cache
-
-# Function to print out text but instead of starting a new line it will overwrite the existing line
-def update_text(txt):
-    sys.stdout.write('\r'+txt)
-    sys.stdout.flush()
 
 #Convert the standard 3x4 position/rotation matrix to a x,y,z location and the appropriate Euler angles (in degrees)
 def convert_to_euler(pose_mat):
@@ -20,19 +15,6 @@ def convert_to_euler(pose_mat):
     y = pose_mat[1][3]
     z = pose_mat[2][3]
     return [x,y,z,yaw,pitch,roll]
-
-#Convert the standard 3x4 position/rotation matrix to a x,y,z location and the appropriate Quaternion
-def convert_to_quaternion(pose_mat):
-    # Per issue #2, adding a abs() so that sqrt only results in real numbers
-    r_w = math.sqrt(abs(1+pose_mat[0][0]+pose_mat[1][1]+pose_mat[2][2]))/2
-    r_x = (pose_mat[2][1]-pose_mat[1][2])/(4*r_w)
-    r_y = (pose_mat[0][2]-pose_mat[2][0])/(4*r_w)
-    r_z = (pose_mat[1][0]-pose_mat[0][1])/(4*r_w)
-
-    x = pose_mat[0][3]
-    y = pose_mat[1][3]
-    z = pose_mat[2][3]
-    return [x,y,z,r_w,r_x,r_y,r_z]
 
 #Define a class to make it easy to append pose matricies and convert to both Euler and Quaternion for plotting
 class pose_sample_buffer():
@@ -134,41 +116,20 @@ class vr_tracked_device():
         else:
             return None
 
-    def get_pose_quaternion(self, pose=None):
-        if pose == None:
-            pose = get_pose(self.vr)
-        if pose[self.index].bPoseIsValid:
-            return convert_to_quaternion(pose[self.index].mDeviceToAbsoluteTracking)
-        else:
-            return None
-
     def controller_state_to_dict(self, pControllerState):
         # This function is graciously borrowed from https://gist.github.com/awesomebytes/75daab3adb62b331f21ecf3a03b3ab46
         # docs: https://github.com/ValveSoftware/openvr/wiki/IVRSystem::GetControllerState
         d = {}
         d['unPacketNum'] = pControllerState.unPacketNum
-        # on trigger .y is always 0.0 says the docs
-        d['trigger'] = pControllerState.rAxis[1].x
-        # 0.0 on trigger is fully released
-        # -1.0 to 1.0 on joystick and trackpads
-        d['trackpad_x'] = pControllerState.rAxis[0].x
-        d['trackpad_y'] = pControllerState.rAxis[0].y
-        # These are published and always 0.0
-        # for i in range(2, 5):
-        #     d['unknowns_' + str(i) + '_x'] = pControllerState.rAxis[i].x
-        #     d['unknowns_' + str(i) + '_y'] = pControllerState.rAxis[i].y
-        d['ulButtonPressed'] = pControllerState.ulButtonPressed
-        d['ulButtonTouched'] = pControllerState.ulButtonTouched
-        # To make easier to understand what is going on
-        # Second bit marks menu button
-        d['menu_button'] = bool(pControllerState.ulButtonPressed >> 1 & 1)
-        # 32 bit marks trackpad
-        d['trackpad_pressed'] = bool(pControllerState.ulButtonPressed >> 32 & 1)
-        d['trackpad_touched'] = bool(pControllerState.ulButtonTouched >> 32 & 1)
-        # third bit marks grip button
-        d['grip_button'] = bool(pControllerState.ulButtonPressed >> 2 & 1)
-        # System button can't be read, if you press it
-        # the controllers stop reporting
+        d['trigger'] = pControllerState.rAxis[1].x # value = 0 if it is not pressed, 1 if it is pressed
+        d['trackpad_x'] = pControllerState.rAxis[0].x # Goes from -1.0 to 1.0
+        d['trackpad_y'] = pControllerState.rAxis[0].y # Goes from -1.0 to 1.0
+        d['ulButtonPressed'] = pControllerState.ulButtonPressed # Always 0
+        d['ulButtonTouched'] = pControllerState.ulButtonTouched # Always 0
+        d['menu_button'] = bool(pControllerState.ulButtonPressed >> 1 & 1) # 1 if pressed, 0 if not pressed
+        d['trackpad_pressed'] = bool(pControllerState.ulButtonPressed >> 32 & 1) # 1 if pressed, 0 if not pressed
+        d['trackpad_touched'] = bool(pControllerState.ulButtonTouched >> 32 & 1) # 1 if touched, 0 if not touched
+        d['grip_button'] = bool(pControllerState.ulButtonPressed >> 2 & 1) # 1 if pressed, 0 if not pressed
         return d
 
     def get_controller_inputs(self):
@@ -200,29 +161,15 @@ class triad_openvr():
         poses = self.vr.getDeviceToAbsoluteTrackingPose(openvr.TrackingUniverseStanding, 0,
                                                                openvr.k_unMaxTrackedDeviceCount)
 
-        # Loading config file
-        if configfile_path:
-            try:
-                with open(configfile_path, 'r') as json_data:
-                    config = json.load(json_data)
-            except EnvironmentError: # parent of IOError, OSError *and* WindowsError where available
-                print('config.json not found.')
-                exit(1)
+        for i in range(openvr.k_unMaxTrackedDeviceCount):
+            if poses[i].bDeviceIsConnected:
+                self.add_tracked_device(i)
 
-            # Iterate through the pose list to find the active devices and determine their type
-            for i in range(openvr.k_unMaxTrackedDeviceCount):
-                if poses[i].bDeviceIsConnected:
-                    device_serial = self.vr.getStringTrackedDeviceProperty(i,openvr.Prop_SerialNumber_String).decode('utf-8')
-                    for device in config['devices']:
-                        if device_serial == device['serial']:
-                            device_name = device['name']
-                            self.object_names[device['type']].append(device_name)
-                            self.devices[device_name] = vr_tracked_device(self.vr,i,device['type'])
-        else:
-            # Iterate through the pose list to find the active devices and determine their type
-            for i in range(openvr.k_unMaxTrackedDeviceCount):
-                if poses[i].bDeviceIsConnected:
-                    self.add_tracked_device(i)
+    def return_controller_serials(self):
+        controller_serials = {}
+        for device in self.object_names["Controller"]:
+            controller_serials[self.devices[device].get_serial()] = device
+        return controller_serials
 
     def __del__(self):
         openvr.shutdown()
@@ -239,7 +186,6 @@ class triad_openvr():
             if event.eventType == openvr.VREvent_TrackedDeviceActivated:
                 self.add_tracked_device(event.trackedDeviceIndex)
             elif event.eventType == openvr.VREvent_TrackedDeviceDeactivated:
-                #If we were already tracking this device, quit tracking it.
                 if event.trackedDeviceIndex in self.device_index_map:
                     self.remove_tracked_device(event.trackedDeviceIndex)
 
