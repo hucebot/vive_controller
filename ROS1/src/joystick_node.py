@@ -38,13 +38,12 @@ class JoystickNode:
     def __init__(self):
         rospy.init_node('joystick_node', anonymous=True)
 
+        #TODO Topic should be in the config file
         self.position_publisher_right = rospy.Publisher('/dxl_input/pos_right', PoseStamped, queue_size=10)
         self.gripper_publisher_right = rospy.Publisher('/dxl_input/gripper_right', PointStamped, queue_size=10)
-        self.marker_publisher_right = rospy.Publisher('/dxl_input/pose_right', Marker, queue_size=10)
 
         self.position_publisher_left = rospy.Publisher('/dxl_input/pos_left', PoseStamped, queue_size=10)
         self.gripper_publisher_left = rospy.Publisher('/dxl_input/gripper_left', PointStamped, queue_size=10)
-        self.marker_publisher_left = rospy.Publisher('/dxl_input/pose_left', Marker, queue_size=10)
 
         config_file = "/ros_ws/src/ros1_vive_controller/config/vice_controllers.yaml"
 
@@ -55,23 +54,37 @@ class JoystickNode:
         
         rospy.loginfo("Controllers found: {}".format(self.controllers))
  
+        # TODO: Get the following parameters from the config file
         self.left_serial = "LHR-21C1BC92"
         self.right_serial = "LHR-9ABF6D66"
-
+        self.publish_markers = True
         self.space_scale = 1.0
-        self.controller_name_right = self.controllers[self.right_serial]
-        self.controller_name_left = self.controllers[self.left_serial]
+        self.use_left_controller = True
+        self.use_right_controller = True
         self.rate = rospy.Rate(50)
+
+        if self.use_right_controller:
+            self.position_publisher_right = rospy.Publisher('/dxl_input/pos_right', PoseStamped, queue_size=10)
+            self.gripper_publisher_right = rospy.Publisher('/dxl_input/gripper_right', PointStamped, queue_size=10)
+            self.controller_name_right = self.controllers[self.right_serial]
+            self.right_initial_orientation = None
+            self.right_initial_position = None
+            if self.publish_markers:
+                self.marker_publisher_right = rospy.Publisher('/dxl_input/pose_right', Marker, queue_size=10)
+
+        if self.use_left_controller:
+            self.position_publisher_left = rospy.Publisher('/dxl_input/pos_left', PoseStamped, queue_size=10)
+            self.gripper_publisher_left = rospy.Publisher('/dxl_input/gripper_left', PointStamped, queue_size=10)
+            self.controller_name_left = self.controllers[self.left_serial]
+            self.left_initial_orientation = None
+            self.left_initial_position = None
+            if self.publish_markers:
+                self.marker_publisher_left = rospy.Publisher('/dxl_input/pose_left', Marker, queue_size=10)
 
         self.pose_msg = PoseStamped()
         self.gripper_msg = PointStamped()
-
-        self.right_initial_position = None
-        self.right_initial_orientation = None
-        self.left_initial_position = None
-        self.left_initial_orientation = None
         
-        # Inicializar el filtro de Kalman
+        #TODO Maybe this should be in the config file
         self.dt = 1.0 / 50.0
         self.state_dim = 6
         self.measurement_dim = 6
@@ -131,8 +144,8 @@ class JoystickNode:
         controller_inputs = device.get_controller_inputs()
 
         if euler_pose is None:
-            #TODO: Send vibration to the controller
-            rospy.logwarn(f'{side} controller is not tracking')
+            device.trigger_haptic_pulse(1000, 0)
+            #TODO Do something if we lose the tracking
             
             self.pose_msg.header.frame_id = "ci/world"
             self.pose_msg.header.stamp = rospy.Time.now()
@@ -150,9 +163,10 @@ class JoystickNode:
             trigger_value = controller_inputs.get('trigger', 0)
             trackpad_pressed = controller_inputs.get('trackpad_pressed', 0)
             trackpad_touched = controller_inputs.get('trackpad_touched', 0)
-            reset_button = controller_inputs.get('menu_button', 0)
+            menu_button = controller_inputs.get('menu_button', 0)
+            gripper_button = controller_inputs.get('grip_button', 0)
 
-            if reset_button:
+            if gripper_button:
                 rospy.loginfo(f'Resetting initial position for {side} controller')
                 if side == "right":
                     self.right_initial_position = euler_pose[:3]
@@ -183,7 +197,7 @@ class JoystickNode:
                 #TODO Move the robot base with the trackpad
                 pass
 
-            if trackpad_pressed:
+            if trigger_value >= 0.5:
                 if side == "right":
                     initial_position = self.right_initial_position
                     initial_orientation = self.right_initial_orientation
@@ -240,12 +254,13 @@ class JoystickNode:
                 position_publisher.publish(self.pose_msg)
 
                 self.gripper_msg.header = self.pose_msg.header
-                self.gripper_msg.point.x = trigger_value
+                self.gripper_msg.point.x = menu_button
                 self.gripper_msg.point.y = 0
                 self.gripper_msg.point.z = 0
                 gripper_publisher.publish(self.gripper_msg)
 
-            self.publish_axes_marker("ci/world", self.pose_msg.pose, marker_publisher)
+            if self.publish_markers:
+                self.publish_axes_marker("ci/world", self.pose_msg.pose, marker_publisher)
             
 
             
@@ -253,23 +268,25 @@ class JoystickNode:
 
     def main_loop(self):
         while not rospy.is_shutdown():
-            self.parse_data_device(
-                self.v.devices[self.controller_name_right], 
-                "right", 
-                self.position_publisher_right, 
-                self.gripper_publisher_right, 
-                self.marker_publisher_right,
-                self.right_kf
-            )
+            if self.use_right_controller:
+                self.parse_data_device(
+                    self.v.devices[self.controller_name_right], 
+                    "right", 
+                    self.position_publisher_right, 
+                    self.gripper_publisher_right, 
+                    self.marker_publisher_right,
+                    self.right_kf
+                )
 
-            self.parse_data_device(
-                self.v.devices[self.controller_name_left], 
-                "left", 
-                self.position_publisher_left, 
-                self.gripper_publisher_left, 
-                self.marker_publisher_left,
-                self.left_kf
-            )
+            if self.use_left_controller:
+                self.parse_data_device(
+                    self.v.devices[self.controller_name_left], 
+                    "left", 
+                    self.position_publisher_left, 
+                    self.gripper_publisher_left, 
+                    self.marker_publisher_left,
+                    self.left_kf
+                )
 
             self.rate.sleep()
 
