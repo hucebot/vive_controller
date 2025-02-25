@@ -1,0 +1,37 @@
+general:
+  node_name: vice_controllers
+  frame_id: ci/world
+  left_position_topic: /dxl_input/pos_right
+  left_gripper_topic: /dxl_input/gripper_right
+  left_marker_topic: /dxl_input/marker_right
+
+  right_position_topic: /dxl_input/pos_left
+  right_gripper_topic: /dxl_input/gripper_left
+  right_marker_topic: /dxl_input/marker_left
+
+  publish_markers: true
+  space_scale: 1.0
+  use_left_controller: true
+  use_right_controller: true
+  rate: 50
+
+htc_vive:
+  controller_1:
+    name: right_controller
+    serial: LHR-9ABF6D66
+    type: controller
+
+  controller_2:
+    name: left_controller
+    serial: LHR-21C1BC92
+    type: controller
+
+  tracker:
+    name: head_tracker
+    serial: 
+    type: tracker
+
+kalman_filter:
+  frequency: 50
+  state_dim: 6
+  measurement_dim: 6

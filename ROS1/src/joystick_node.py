@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 
 from openvr_class import triad_openvr, time
-import rospy
+import rospy, math, yaml
 import numpy as np
 from geometry_msgs.msg import PoseStamped, PointStamped
 from visualization_msgs.msg import Marker
-import math
 from tf.transformations import quaternion_from_euler, quaternion_multiply, quaternion_inverse, euler_from_quaternion
+
+def read_yaml(path):
+    with open(path, 'r') as stream:
+        try:
+            return yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
 
 class KalmanFilter:
     def __init__(self, dt, state_dim, measurement_dim):
@@ -38,56 +44,46 @@ class JoystickNode:
     def __init__(self):
         rospy.init_node('joystick_node', anonymous=True)
 
-        #TODO Topic should be in the config file
-        self.position_publisher_right = rospy.Publisher('/dxl_input/pos_right', PoseStamped, queue_size=10)
-        self.gripper_publisher_right = rospy.Publisher('/dxl_input/gripper_right', PointStamped, queue_size=10)
-
-        self.position_publisher_left = rospy.Publisher('/dxl_input/pos_left', PoseStamped, queue_size=10)
-        self.gripper_publisher_left = rospy.Publisher('/dxl_input/gripper_left', PointStamped, queue_size=10)
-
-        config_file = "/ros_ws/src/ros1_vive_controller/config/vice_controllers.yaml"
+        self.config_file = "/ros_ws/src/ros1_vive_controller/config/config.yaml"
+        self.configurations = read_yaml( self.config_file)
 
         self.controllers = []
-        self.v = triad_openvr(config_file)
+        self.v = triad_openvr( self.config_file)
         self.v.print_discovered_objects()
         self.controllers = self.v.return_controller_serials()
-        
-        rospy.loginfo("Controllers found: {}".format(self.controllers))
- 
-        # TODO: Get the following parameters from the config file
-        self.left_serial = "LHR-21C1BC92"
-        self.right_serial = "LHR-9ABF6D66"
-        self.publish_markers = True
-        self.space_scale = 1.0
-        self.use_left_controller = True
-        self.use_right_controller = True
-        self.rate = rospy.Rate(50)
+
+        self.left_serial = self.configurations['htc_vive']['controller_2']['serial']
+        self.right_serial = self.configurations['htc_vive']['controller_1']['serial']
+        self.publish_markers = self.configurations['general']['publish_markers']
+        self.space_scale = self.configurations['general']['space_scale']
+        self.use_left_controller = self.configurations['general']['use_left_controller']
+        self.use_right_controller = self.configurations['general']['use_right_controller']
+        self.rate = rospy.Rate(self.configurations['general']['rate'])
 
         if self.use_right_controller:
-            self.position_publisher_right = rospy.Publisher('/dxl_input/pos_right', PoseStamped, queue_size=10)
-            self.gripper_publisher_right = rospy.Publisher('/dxl_input/gripper_right', PointStamped, queue_size=10)
+            self.position_publisher_right = rospy.Publisher(self.configurations['general']['right_position_topic'], PoseStamped, queue_size=10)
+            self.gripper_publisher_right = rospy.Publisher(self.configurations['general']['right_gripper_topic'], PointStamped, queue_size=10)
             self.controller_name_right = self.controllers[self.right_serial]
             self.right_initial_orientation = None
             self.right_initial_position = None
             if self.publish_markers:
-                self.marker_publisher_right = rospy.Publisher('/dxl_input/pose_right', Marker, queue_size=10)
+                self.marker_publisher_right = rospy.Publisher(self.configurations['general']['right_marker_topic'], Marker, queue_size=10)
 
         if self.use_left_controller:
-            self.position_publisher_left = rospy.Publisher('/dxl_input/pos_left', PoseStamped, queue_size=10)
-            self.gripper_publisher_left = rospy.Publisher('/dxl_input/gripper_left', PointStamped, queue_size=10)
+            self.position_publisher_left = rospy.Publisher(self.configurations['general']['left_position_topic'], PoseStamped, queue_size=10)
+            self.gripper_publisher_left = rospy.Publisher(self.configurations['general']['left_gripper_topic'], PointStamped, queue_size=10)
             self.controller_name_left = self.controllers[self.left_serial]
             self.left_initial_orientation = None
             self.left_initial_position = None
             if self.publish_markers:
-                self.marker_publisher_left = rospy.Publisher('/dxl_input/pose_left', Marker, queue_size=10)
+                self.marker_publisher_left = rospy.Publisher(self.configurations['general']['left_marker_topic'], Marker, queue_size=10)
 
         self.pose_msg = PoseStamped()
         self.gripper_msg = PointStamped()
         
-        #TODO Maybe this should be in the config file
-        self.dt = 1.0 / 50.0
-        self.state_dim = 6
-        self.measurement_dim = 6
+        self.dt = 1.0 / self.configurations['kalman_filter']['frequency']
+        self.state_dim = self.configurations['kalman_filter']['state_dim']
+        self.measurement_dim = self.configurations['kalman_filter']['measurement_dim']
         self.right_kf = KalmanFilter(self.dt, self.state_dim, self.measurement_dim)
         self.left_kf = KalmanFilter(self.dt, self.state_dim, self.measurement_dim)
 
@@ -261,9 +257,6 @@ class JoystickNode:
 
             if self.publish_markers:
                 self.publish_axes_marker("ci/world", self.pose_msg.pose, marker_publisher)
-            
-
-            
 
 
     def main_loop(self):
