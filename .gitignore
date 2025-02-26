@@ -3,3 +3,6 @@
 
 ##### VSCode Files #####
 .vscode/
+
+##### Debug Files #####
+*.csv

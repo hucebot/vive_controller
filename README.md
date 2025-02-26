@@ -7,9 +7,9 @@ https://docs.ros.org/en/noetic/index.html)
 [![Ros Version](https://img.shields.io/badge/ROS2-Humble-red)](
 https://docs.ros.org/en/humble/index.html)
 
-| Control Cartesio - RVIZ                                | Control Real Robot                     |
+| Control Cartesio - RVIZ                                | Control Real Robot                     | Workspace                    |
 |-------------------------------------------------------|-----------------------------------------------------|
-| <img src="https://github.com/hucebot/vive_controller/blob/main/images/test_rviz.gif" alt="Control Cartesio" width="400"> | <img src="https://github.com/hucebot/vive_controller/blob/main/images/test_rviz.gif" alt="Control Real Robot" width="400"> |
+| <img src="https://github.com/hucebot/vive_controller/blob/main/images/test_rviz.gif" alt="Control Cartesio" width="250"> | <img src="https://github.com/hucebot/vive_controller/blob/main/images/test_rviz.gif" alt="Control Real Robot" width="250"> | <img src="https://github.com/hucebot/vive_controller/blob/main/images/workspace.gif" alt="Control Real Robot" width="250"> |
 
 
 ## Table of Contents
