@@ -9,7 +9,7 @@ https://docs.ros.org/en/humble/index.html)
 
 | **Control Cartesio - RVIZ**                                | **Control Real Robot**                     | **Workspace**                   |
 |-------------------------------------------------------|-----------------------------------------------------|-----------------------------------------------------|
-| <img src="https://github.com/hucebot/vive_controller/blob/main/images/test_rviz.gif" alt="Control Cartesio" width="250"> | <img src="https://github.com/hucebot/vive_controller/blob/main/images/test_rviz.gif" alt="Control Real Robot" width="250"> | <img src="https://github.com/hucebot/vive_controller/blob/main/images/workspace.gif" alt="Control Real Robot" width="250"> |
+| <img src="https://github.com/hucebot/vive_controller/blob/main/images/test_rviz.gif" alt="Control Cartesio" width="240"> | <img src="https://github.com/hucebot/vive_controller/blob/main/images/test_rviz.gif" alt="Control Real Robot" width="240"> | <img src="https://github.com/hucebot/vive_controller/blob/main/images/workspace.gif" alt="Control Real Robot" width="240"> |
 
 
 ## Table of Contents
@@ -22,9 +22,11 @@ https://docs.ros.org/en/humble/index.html)
   - [Steam VR Instructions](#steam-vr-instructions)
     - [Install Steam](#install-steam)
     - [Connect Devices](#connect-devices)
-  - [Python API](#python-api)
   - [ROS](#ros)
     - [ROS1](#ros1)
+      - [Calibrate Workspace](#calibrate-workspace)
+      - [Visualize Workspace](#visualize-workspace)
+      - [Run Joystick Node](#run-joystick-node)
     <!---- [ROS2](#ros2) -->
 
 
@@ -85,21 +87,40 @@ Once Steam is installed, open it and log in with your account. If you don't have
 Once SteamVR is installed, open it and go to the settings. In the settings, go the paired devices and pair your Vive Tracker and Vive Joystick. You can also pair your Vive Base Station if you have one.
 Once the devices are paired, you will see a small window with the devices and their status. Make sure that all devices are connected. Finally, you can close SteamVR.
 
-
-## Python API
-To try the Python API, you can go to the python folder and run the following command:
-```bash
-python3 test_vive_controller.py
-```
-This will show the pose of the Vive Joystick in the terminal.
-
 ## ROS
 
 ### ROS1
-TODO
-```bash
 
+#### Calibrate Workspace
+
+It is important to calibrate the workspace before using the joystick. By calibrating the workspace, you define the limites of the tracking area. To calibrate the workspace, run the following command:
+
+```bash
+rosrun ros1_vive_controller calibrate_workspace.py
 ```
+
+The idea is to move the joystick in every direction, with this you will create a PointCloud that represents the workspace. The recomendations it's to use RVIZ to visualize 
+this point cloud over the topic `/workspace_pointcloud`, in this way it will be more easly to see the limits of the workspace.
+
+
+#### Visualize Workspace
+
+Once the workspace is calibrated, you can visualize the representation of it, the convexhull and the bounding box representing the workspace removing the outliers. If you feel that you should remove more outliers
+you can change the parameter `z_threshold`.
+
+To visualize the workspace, run the following command:
+```bash
+cd /ros_ws/src/ros1_vive_controller/tools && python visualize_workspace.py
+```
+
+#### Run Joystick Node
+
+Finally, you can run the joystick node. With the workspace calibrated, you will fell a vibration if you are near the limits of the workspace. To run the joystick node, run the following command:
+
+```bash
+rosrun ros1_vive_controller joystick_node.py
+```
+
 <!--- TODO
 ### ROS2
 TODO

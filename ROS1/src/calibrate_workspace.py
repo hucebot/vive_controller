@@ -49,9 +49,6 @@ class CalibrationWS:
 
         self.main_loop()
 
-    def calibration_process(self):
-        pass
-
     def main_loop(self):
         while not rospy.is_shutdown():
             euler_pose = self.v.devices[self.controller_name_right].get_pose_euler()

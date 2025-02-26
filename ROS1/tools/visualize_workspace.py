@@ -8,6 +8,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 config_file = "/ros_ws/src/ros1_vive_controller/config/config.yaml"
+z_threshold = 1.2
 
 def remove_outliers_zscore(points, z_threshold=1.0):
     mean = np.mean(points, axis=0)
@@ -145,7 +146,7 @@ def main():
             points_list.append([x, y, z])
     points = np.array(points_list)
 
-    filtered = remove_outliers_zscore(points, z_threshold=1.2)
+    filtered = remove_outliers_zscore(points, z_threshold=z_threshold)
 
     if len(filtered) > 3:
         plot_convex_hull(filtered)
