@@ -31,13 +31,14 @@ class CalibrationWS:
         self.controllers = self.v.return_controller_serials()
         
         self.right_serial = self.configurations['htc_vive']['controller_1']['serial']
+        self.csv_path = self.configurations['general']['csv_path']
         self.controller_name_right = self.controllers[self.right_serial]
 
         self.all_points = []
 
         self.pc_pub = rospy.Publisher("workspace_pointcloud", PointCloud2, queue_size=10)
 
-        self.header_frame_id = "world"
+        self.header_frame_id = "ci/world"
         self.fields = [
             PointField('x', 0, PointField.FLOAT32, 1),
             PointField('y', 4, PointField.FLOAT32, 1),
@@ -71,14 +72,13 @@ class CalibrationWS:
         self.pc_pub.publish(cloud)
 
     def save_points_to_csv(self):
-        output_file = "/ros_ws/src/ros1_vive_controller/data/"
-        if not os.path.exists(output_file):
-            os.makedirs(output_file)
-        output_file += "points.csv"
-        rospy.loginfo(f"Saving points {output_file}...")
+        if not os.path.exists(self.csv_path):
+            os.makedirs(self.csv_path)
+        self.csv_path += "points.csv"
+        rospy.loginfo(f"Saving points {self.csv_path}...")
 
         try:
-            with open(output_file, mode='w', newline='') as csvfile:
+            with open(self.csv_path, mode='w', newline='') as csvfile:
                 writer = csv.writer(csvfile, delimiter=',')
                 writer.writerow(["x", "y", "z"])
                 for (x, y, z) in self.all_points:

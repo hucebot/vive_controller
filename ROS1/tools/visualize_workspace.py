@@ -8,30 +8,17 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 config_file = "/ros_ws/src/ros1_vive_controller/config/config.yaml"
-z_threshold = 1.2
 
-def remove_outliers_zscore(points, z_threshold=1.0):
+def remove_outliers_zscore(points, z_threshold):
     mean = np.mean(points, axis=0)
     std = np.std(points, axis=0)
     std[std == 0] = 1e-9
     z_scores = np.abs((points - mean) / std)
-    filtered_points = points[(z_scores < z_threshold).all(axis=1)]
-    return filtered_points
-
-def remove_outliers_iqr(points, k=1.5):
-    data_T = points.T
-    mask = np.ones(len(points), dtype=bool)
-    for dim in range(data_T.shape[0]):
-        col = data_T[dim]
-        Q1 = np.percentile(col, 25)
-        Q3 = np.percentile(col, 75)
-        IQR = Q3 - Q1
-        lower_bound = Q1 - k * IQR
-        upper_bound = Q3 + k * IQR
-        mask_dim = (col >= lower_bound) & (col <= upper_bound)
-        mask = mask & mask_dim
+    mask = (z_scores < z_threshold).all(axis=1)
+    
     filtered_points = points[mask]
-    return filtered_points
+    outliers = points[~mask]
+    return filtered_points, outliers
 
 def set_axes_equal(ax):
     x_limits = ax.get_xlim3d()
@@ -90,9 +77,7 @@ def plot_bounding_box(points, ax, color='green', alpha=0.2):
 
     write_yaml(config_file, configurations)
 
-
     poly3d = [[corners[idx] for idx in face] for face in faces]
-
     collection = Poly3DCollection(poly3d, facecolors=color, alpha=alpha, edgecolors='k')
     ax.add_collection3d(collection)
 
@@ -104,22 +89,31 @@ def read_yaml(path):
             print(exc)
             return {}
 
-
 def write_yaml(path, data):
     with open(path, 'w') as outfile:
         yaml.dump(data, outfile, default_flow_style=False)
 
-def plot_convex_hull(points):
+def plot_convex_hull(points, outliers=None):
     hull = ConvexHull(points)
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
+    if outliers is not None and len(outliers) > 0:
+        ax.scatter(
+            outliers[:,0], 
+            outliers[:,1], 
+            outliers[:,2], 
+            color='black', 
+            alpha=0.5, 
+            label='Outliers'
+        )
 
-    ax.scatter(points[:,0], points[:,1], points[:,2], color='blue', alpha=0.5)
+    ax.scatter(points[:,0], points[:,1], points[:,2], color='blue', alpha=0.5, label='Filtrados')
 
     for simplex in hull.simplices:
         xs = points[simplex, 0]
         ys = points[simplex, 1]
         zs = points[simplex, 2]
+        # Cerramos el polígono
         xs = np.append(xs, xs[0])
         ys = np.append(ys, ys[0])
         zs = np.append(zs, zs[0])
@@ -127,15 +121,16 @@ def plot_convex_hull(points):
 
     plot_bounding_box(points, ax, color='green', alpha=0.2)
 
-
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
+
     set_axes_equal(ax)
+    plt.legend()
     plt.show()
 
 def main():
-    csv_file = "/ros_ws/src/ros1_vive_controller/data/points.csv"
+    csv_file = read_yaml(config_file)['general']['csv_path'] +  'points.csv'
     points_list = []
     with open(csv_file, 'r') as file:
         reader = csv.DictReader(file)
@@ -146,10 +141,12 @@ def main():
             points_list.append([x, y, z])
     points = np.array(points_list)
 
-    filtered = remove_outliers_zscore(points, z_threshold=z_threshold)
+    z_threshold = read_yaml(config_file)['general']['z_threshold']
+    filtered, outliers = remove_outliers_zscore(points, z_threshold=z_threshold)
+
 
     if len(filtered) > 3:
-        plot_convex_hull(filtered)
+        plot_convex_hull(filtered, outliers)
     else:
         print("Not enough points to compute the Convex Hull")
 

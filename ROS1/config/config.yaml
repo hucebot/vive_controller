@@ -1,18 +1,20 @@
 general:
+  csv_path: /ros_ws/src/ros1_vive_controller/data/
   frame_id: ci/world
-  left_gripper_topic: /dxl_input/gripper_right
-  left_marker_topic: /dxl_input/marker_right
-  left_position_topic: /dxl_input/pos_right
+  left_gripper_topic: /dxl_input/gripper_left
+  left_marker_topic: /dxl_input/marker_left
+  left_position_topic: /dxl_input/pos_left
   node_name: vice_controllers
   publish_markers: true
   rate: 50
-  right_gripper_topic: /dxl_input/gripper_left
-  right_marker_topic: /dxl_input/marker_left
-  right_position_topic: /dxl_input/pos_left
+  right_gripper_topic: /dxl_input/gripper_right
+  right_marker_topic: /dxl_input/marker_right
+  right_position_topic: /dxl_input/pos_right
   space_scale: 1.0
-  use_left_controller: true
+  use_left_controller: false
   use_right_controller: true
   workspace_limit: 0.2
+  z_threshold: 1.8
 htc_vive:
   controller_1:
     name: right_controller
@@ -31,9 +33,9 @@ kalman_filter:
   measurement_dim: 6
   state_dim: 6
 workspace:
-  x_max: -0.61
-  x_min: -1.47
-  y_max: 0.47
-  y_min: -0.71
-  z_max: 0.71
-  z_min: -0.46
+  x_max: -0.4
+  x_min: -1.68
+  y_max: 0.7
+  y_min: -0.99
+  z_max: 0.93
+  z_min: -0.71
