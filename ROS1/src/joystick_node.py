@@ -226,14 +226,14 @@ class JoystickNode:
 
             if gripper_button:
                 rospy.loginfo(f'Resetting initial position for {side} controller')
-                if side == "right" and self.use_left_controller:
+                if side == "right" and self.use_right_controller:
                     self.right_initial_position = euler_pose[:3]
                     self.right_initial_orientation = quaternion_from_euler(
                         math.radians(euler_pose[3]),
                         math.radians(euler_pose[5]),
                         math.radians(euler_pose[4])
                     )
-                if side == "left" and self.use_right_controller:
+                if side == "left" and self.use_left_controller:
                     self.left_initial_position = euler_pose[:3]
                     self.left_initial_orientation = quaternion_from_euler(
                         math.radians(euler_pose[3]),
@@ -270,7 +270,6 @@ class JoystickNode:
                 if side == "left" and self.use_left_controller:
                     initial_position = self.left_initial_position
                     initial_orientation = self.left_initial_orientation
-
 
                 pose_x = -round(euler_pose[0] - initial_position[0], 2)
                 pose_y = round(euler_pose[2] - initial_position[2], 2)

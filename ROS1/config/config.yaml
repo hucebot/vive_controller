@@ -13,7 +13,7 @@ general:
   space_scale: 1.0
   use_left_controller: false
   use_right_controller: true
-  workspace_limit: 0.2
+  workspace_limit: 0.3
   z_threshold: 1.8
 htc_vive:
   controller_1:
@@ -33,9 +33,9 @@ kalman_filter:
   measurement_dim: 6
   state_dim: 6
 workspace:
-  x_max: -0.4
-  x_min: -1.68
-  y_max: 0.7
-  y_min: -0.99
-  z_max: 0.93
-  z_min: -0.71
+  x_max: -0.11
+  x_min: -1.36
+  y_max: 1.2
+  y_min: -1.01
+  z_max: 0.15
+  z_min: -1.18
