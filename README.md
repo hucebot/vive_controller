@@ -25,7 +25,7 @@ https://docs.ros.org/en/humble/index.html)
   - [ROS](#ros)
     - [ROS1](#ros1)
       - [Calibrate Workspace](#calibrate-workspace)
-      - [Visualize Workspace](#visualize-workspace)
+      - [Visualize and generate the workspace](#visualize-and-generate-the-workspace)
       - [Run Joystick Node](#run-joystick-node)
     <!---- [ROS2](#ros2) -->
 
@@ -103,19 +103,18 @@ The idea is to move the joystick in every direction, with this you will create a
 this point cloud over the topic `/workspace_pointcloud`, in this way it will be more easly to see the limits of the workspace.
 
 
-#### Visualize Workspace
+#### Visualize and generate the workspace
 
-Once the workspace is calibrated, you can visualize the representation of it, the convexhull and the bounding box representing the workspace removing the outliers. If you feel that you should remove more outliers
-you can change the parameter `z_threshold`.
+Once the workspace is calibrated, you can visualize the representation of it, the convexhull and the bounding box representing the workspace ( After removing the outliers). If you feel that you should remove more outliers you can change the parameter `z_threshold` on the config file.
 
-To visualize the workspace, run the following command:
+To visualize and generate the workspace, run the following command:
 ```bash
 cd /ros_ws/src/ros1_vive_controller/tools && python visualize_workspace.py
 ```
 
 #### Run Joystick Node
 
-Finally, you can run the joystick node. With the workspace calibrated, you will fell a vibration if you are near the limits of the workspace. To run the joystick node, run the following command:
+Finally, you can run the joystick node. With the workspace calibrated, you will fell a vibration if you are near the limits of the workspace (By default is setup to 20 cm, but can be modified on the config file). To run the joystick node, run the following command:
 
 ```bash
 rosrun ros1_vive_controller joystick_node.py

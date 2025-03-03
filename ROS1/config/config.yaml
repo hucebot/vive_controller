@@ -13,8 +13,14 @@ general:
   space_scale: 1.0
   use_left_controller: false
   use_right_controller: true
-  workspace_limit: 0.3
+  workspace_limit: 0.20
   z_threshold: 1.8
+  linear_scale: 1.0
+  angular_scale: 1.0
+  move_base: false
+  move_base_angular_topic: /dxl_input/angular
+  move_base_linear_x_topic: /dxl_input/linear_x
+  move_base_linear_y_topic: /dxl_input/linear_y
 htc_vive:
   controller_1:
     name: right_controller

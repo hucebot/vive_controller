@@ -3,6 +3,7 @@
 from openvr_class import triad_openvr, time
 import rospy, math, yaml
 import numpy as np
+from std_msgs.msg import Float32
 from geometry_msgs.msg import PoseStamped, PointStamped
 from visualization_msgs.msg import Marker
 from tf.transformations import quaternion_from_euler, quaternion_multiply, quaternion_inverse, euler_from_quaternion
@@ -57,6 +58,9 @@ class JoystickNode:
         self.use_left_controller = self.configurations['general']['use_left_controller']
         self.use_right_controller = self.configurations['general']['use_right_controller']
         self.rate = rospy.Rate(self.configurations['general']['rate'])
+        self.linear_scale = self.configurations['general']['linear_scale']
+        self.angular_scale = self.configurations['general']['angular_scale']
+        self.move_base = self.configurations['general']['move_base']
 
         if self.use_right_controller:
             self.right_serial = self.configurations['htc_vive']['controller_1']['serial']
@@ -67,6 +71,8 @@ class JoystickNode:
             self.right_initial_position = None
             if self.publish_markers:
                 self.marker_publisher_right = rospy.Publisher(self.configurations['general']['right_marker_topic'], Marker, queue_size=10)
+            if self.move_base:
+                self.move_base_angular_publisher = rospy.Publisher(self.configurations['general']['move_base_angular_topic'], Float32, queue_size=10)
 
         if self.use_left_controller:
             self.left_serial = self.configurations['htc_vive']['controller_2']['serial']
@@ -77,6 +83,9 @@ class JoystickNode:
             self.left_initial_position = None
             if self.publish_markers:
                 self.marker_publisher_left = rospy.Publisher(self.configurations['general']['left_marker_topic'], Marker, queue_size=10)
+            if self.move_base:
+                self.move_base_linear_x_publisher = rospy.Publisher(self.configurations['general']['move_base_linear_x_topic'], Float32, queue_size=10)
+                self.move_base_linear_y_publisher = rospy.Publisher(self.configurations['general']['move_base_linear_y_topic'], Float32, queue_size=10)
 
         self.pose_msg = PoseStamped()
         self.gripper_msg = PointStamped()
@@ -98,7 +107,6 @@ class JoystickNode:
         if self.publish_markers:
             self.workspace_marker_pub = rospy.Publisher("workspace_bbox_marker", Marker, queue_size=10)
             self.actual_pose_marker_pub = rospy.Publisher("actual_pose_marker", Marker, queue_size=10)
-
         self.main_loop()
 
     def publish_axes_marker(self, frame_id, pose, marker_publisher, namespace="joystick_axes"):
@@ -194,16 +202,16 @@ class JoystickNode:
         if euler_pose is None:
             device.trigger_haptic_pulse(1000, 0)
             rospy.logwarn(f"Failed to get pose for {side} controller")
-            self.pose_msg.header.frame_id = "ci/world"
-            self.pose_msg.header.stamp = rospy.Time.now()
-            self.pose_msg.pose.position.x = 0
-            self.pose_msg.pose.position.y = 0
-            self.pose_msg.pose.position.z = 0
-            self.pose_msg.pose.orientation.x = 0
-            self.pose_msg.pose.orientation.y = 0
-            self.pose_msg.pose.orientation.z = 0
-            self.pose_msg.pose.orientation.w = 1
-            position_publisher.publish(self.pose_msg)
+            # self.pose_msg.header.frame_id = "ci/world"
+            # self.pose_msg.header.stamp = rospy.Time.now()
+            # self.pose_msg.pose.position.x = 0
+            # self.pose_msg.pose.position.y = 0
+            # self.pose_msg.pose.position.z = 0
+            # self.pose_msg.pose.orientation.x = 0
+            # self.pose_msg.pose.orientation.y = 0
+            # self.pose_msg.pose.orientation.z = 0
+            # self.pose_msg.pose.orientation.w = 1
+            # position_publisher.publish(self.pose_msg)
             return
         
         if (euler_pose[2] < self.x_min + self.workspace_limit or
@@ -240,6 +248,7 @@ class JoystickNode:
                         math.radians(euler_pose[5]),
                         math.radians(euler_pose[4])
                     )
+
             if self.use_right_controller:
                 if self.right_initial_position is None and side == "right":
                     self.right_initial_position = euler_pose[:3]
@@ -258,10 +267,19 @@ class JoystickNode:
                         math.radians(euler_pose[4])
                     )
 
-            if trackpad_touched and not trackpad_pressed:
+            if trackpad_touched and trackpad_pressed:
                 trackpad_x = controller_inputs.get('trackpad_x', 0)
                 trackpad_y = controller_inputs.get('trackpad_y', 0)
-                #TODO: Move the base
+                
+                if side == "right" and self.move_base:
+                    vel_ang = trackpad_x * self.angular_scale
+                    rospy.loginfo(f"Angular velocity: {vel_ang}")
+                    self.move_base_angular_publisher.publish(vel_ang)
+
+                if side == "left" and self.move_base:
+                    vel_x = trackpad_x * self.linear_scale
+                    vel_y = trackpad_y * self.linear_scale
+                    rospy.loginfo(f"Linear velocity: {vel_x}, {vel_y}")
 
             if trigger_value >= 0.5:
                 if side == "right" and self.use_right_controller:
@@ -292,12 +310,19 @@ class JoystickNode:
                 kf.predict()
                 filtered_state = kf.update(measurement)
 
+                # filtered_pose_x = pose_x
+                # filtered_pose_y = pose_y
+                # filtered_pose_z = pose_z
+                # filtered_roll   = roll
+                # filtered_pitch  = pitch
+                # filtered_yaw    = yaw
+
                 filtered_pose_x = filtered_state[0, 0]
                 filtered_pose_y = filtered_state[1, 0]
                 filtered_pose_z = filtered_state[2, 0]
-                filtered_roll = filtered_state[3, 0]
-                filtered_pitch = filtered_state[4, 0]
-                filtered_yaw = filtered_state[5, 0]
+                filtered_roll   = filtered_state[3, 0]
+                filtered_pitch  = filtered_state[4, 0]
+                filtered_yaw    = filtered_state[5, 0]
 
                 filtered_q = quaternion_from_euler(
                     math.radians(filtered_roll),
@@ -320,7 +345,7 @@ class JoystickNode:
                 position_publisher.publish(self.pose_msg)
 
                 self.gripper_msg.header = self.pose_msg.header
-                self.gripper_msg.point.x = menu_button
+                self.gripper_msg.point.x = abs(0.2 - menu_button)
                 self.gripper_msg.point.y = 0
                 self.gripper_msg.point.z = 0
                 gripper_publisher.publish(self.gripper_msg)
