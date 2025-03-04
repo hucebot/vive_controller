@@ -27,7 +27,9 @@ https://docs.ros.org/en/humble/index.html)
       - [Calibrate Workspace](#calibrate-workspace)
       - [Visualize and generate the workspace](#visualize-and-generate-the-workspace)
       - [Run Joystick Node](#run-joystick-node)
-    <!---- [ROS2](#ros2) -->
+    - [ROS2](#ros2)
+      - [Tracker Node](#tracker-node)
+
 
 
 # Get Started
@@ -52,21 +54,20 @@ The easiest way to get started is to use the provided Docker image. You can find
 sh build_ros1.sh
 ```
 
-<!--- TODO
 ``bash
 sh build_ros2.sh
-```
+
 -->
 To run the development container, use the following command:
 
 ```bash
 sh run_ros1_dev_docker.sh
 ```
-<!--- TODO
+
 ```bash
 sh run_ros2_dev_docker.sh
 ```
--->
+
 
 # Usage
 
@@ -120,11 +121,14 @@ Finally, you can run the joystick node. With the workspace calibrated, you will 
 rosrun ros1_vive_controller joystick_node.py
 ```
 
-<!--- TODO
-### ROS2
-TODO
-```bash
 
+### ROS2
+
+#### Tracker Node
+The tracker node is responsible for publishing the position and orientation of the vive tracker. To run the tracker node, run the following command:
+
+```bash
+ros2 run ros2_vive_controller vive_tracker
 ```
--->
+
 
