@@ -66,13 +66,10 @@ RUN apt install -y \
     ros-${ROS_DISTRO}-rviz2 \
     ros-${ROS_DISTRO}-rviz-imu-plugin
 
-####### Install OpenVR
-RUN git clone https://github.com/ChristophHaag/openvr.git
-WORKDIR /openvr
-RUN mkdir build
-WORKDIR /openvr/build
-RUN cmake -DCMAKE_BUILD_TYPE=Release ../
-RUN make
+###### Upgrade pip & Install python packages
+RUN python3 -m pip install --upgrade pip
+RUN pip install openvr
+RUN pip install scipy
 
 ###### Update Buffer
 RUN sysctl net.ipv4.ipfrag_time=3
