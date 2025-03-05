@@ -40,6 +40,7 @@ The following dependencies are required to use this package:
 - Docker
 - NVIDIA Container Toolkit (if you are using an NVIDIA GPU)
 - SteamVR
+- OpenVR
 - **Hardware**:
   - Vive Tracker (optional)
   - Vive Joystick (optional)
@@ -82,7 +83,13 @@ The easiest way to install Steam is to install through a command line. To do thi
 sudo apt install steam
 ```
 
-Once Steam is installed, open it and log in with your account. If you don't have an account, you can create one for free. Then, go to the Steam Store and search for SteamVR. Install it.
+Once Steam is installed, open it and log in with your account. If you don't have an account, you can create one for free. Then, go to the Steam Store and search for SteamVR. Install it. 
+Then you need to RUN the BETA Version.
+
+### Using without headset
+Follow this instructions: https://github.com/username223/SteamVRNoHeadset
+Edit Files: *Steam Directory*/steamapps/common/SteamVR/drivers/null/resources/settings/default.vrsettings
+Edite Files: *Steam Directory*/steamapps/common/SteamVR/resources/settings/default.vrsettings
 
 ### Connect Devices
 Once SteamVR is installed, open it and go to the settings. In the settings, go the paired devices and pair your Vive Tracker and Vive Joystick. You can also pair your Vive Base Station if you have one.

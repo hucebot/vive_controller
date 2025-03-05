@@ -1,9 +1,16 @@
 general:
+  robot: talos
+  angular_scale: 1.0
   csv_path: /ros_ws/src/ros1_vive_controller/data/
   frame_id: ci/world
   left_gripper_topic: /dxl_input/gripper_left
   left_marker_topic: /dxl_input/marker_left
   left_position_topic: /dxl_input/pos_left
+  linear_scale: 1.0
+  move_base: false
+  move_base_angular_topic: /dxl_input/angular
+  move_base_linear_x_topic: /dxl_input/linear_x
+  move_base_linear_y_topic: /dxl_input/linear_y
   node_name: vice_controllers
   publish_markers: true
   rate: 50
@@ -13,14 +20,8 @@ general:
   space_scale: 1.0
   use_left_controller: false
   use_right_controller: true
-  workspace_limit: 0.20
+  workspace_limit: 0.2
   z_threshold: 1.8
-  linear_scale: 1.0
-  angular_scale: 1.0
-  move_base: false
-  move_base_angular_topic: /dxl_input/angular
-  move_base_linear_x_topic: /dxl_input/linear_x
-  move_base_linear_y_topic: /dxl_input/linear_y
 htc_vive:
   controller_1:
     name: right_controller
@@ -39,9 +40,9 @@ kalman_filter:
   measurement_dim: 6
   state_dim: 6
 workspace:
-  x_max: -0.11
-  x_min: -1.36
-  y_max: 1.2
-  y_min: -1.01
-  z_max: 0.15
-  z_min: -1.18
+  x_max: -0.08
+  x_min: -1.23
+  y_max: 0.74
+  y_min: -0.91
+  z_max: -0.01
+  z_min: -1.13

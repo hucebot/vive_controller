@@ -1,0 +1,17 @@
+{
+"config" :
+[
+"/home/teleop/.steam/debian-installation/config"
+],
+"external_drivers" : null,
+"jsonid" : "vrpathreg",
+"log" :
+[
+"/home/teleop/.steam/debian-installation/logs"
+],
+"runtime" :
+[
+"/home/teleop/.steam/debian-installation/steamapps/common/SteamVR"
+],
+"version" : 1
+}

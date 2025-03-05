@@ -47,6 +47,8 @@ class JoystickNode:
 
         self.config_file = "/ros_ws/src/ros1_vive_controller/config/config.yaml"
         self.configurations = read_yaml(self.config_file)
+        
+        self.robot_type = self.configurations['generla']['robot']
 
         self.controllers = []
         self.v = triad_openvr(self.config_file)
@@ -66,6 +68,9 @@ class JoystickNode:
             self.right_serial = self.configurations['htc_vive']['controller_1']['serial']
             self.position_publisher_right = rospy.Publisher(self.configurations['general']['right_position_topic'], PoseStamped, queue_size=10)
             self.gripper_publisher_right = rospy.Publisher(self.configurations['general']['right_gripper_topic'], PointStamped, queue_size=10)
+            if self.robot_type == 'talos':
+                self.position_publisher_right = rospy.Publisher(self.configurations['general']['right_position_topic'].replace("_right"), PoseStamped, queue_size=10)
+                self.gripper_publisher_right = rospy.Publisher(self.configurations['general']['right_gripper_topic'].replace("_right"), PointStamped, queue_size=10)
             self.controller_name_right = self.controllers[self.right_serial]
             self.right_initial_orientation = None
             self.right_initial_position = None
