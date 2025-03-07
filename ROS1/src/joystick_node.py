@@ -48,7 +48,7 @@ class JoystickNode:
         self.config_file = "/ros_ws/src/ros1_vive_controller/config/config.yaml"
         self.configurations = read_yaml(self.config_file)
         
-        self.robot_type = self.configurations['generla']['robot']
+        self.robot_type = self.configurations['general']['robot']
 
         self.controllers = []
         self.v = triad_openvr(self.config_file)
@@ -69,8 +69,8 @@ class JoystickNode:
             self.position_publisher_right = rospy.Publisher(self.configurations['general']['right_position_topic'], PoseStamped, queue_size=10)
             self.gripper_publisher_right = rospy.Publisher(self.configurations['general']['right_gripper_topic'], PointStamped, queue_size=10)
             if self.robot_type == 'talos':
-                self.position_publisher_right = rospy.Publisher(self.configurations['general']['right_position_topic'].replace("_right"), PoseStamped, queue_size=10)
-                self.gripper_publisher_right = rospy.Publisher(self.configurations['general']['right_gripper_topic'].replace("_right"), PointStamped, queue_size=10)
+                self.position_publisher_right = rospy.Publisher(self.configurations['general']['talos_position_topic'], PoseStamped, queue_size=10)
+                self.gripper_publisher_right = rospy.Publisher(self.configurations['general']['talos_gripper_topic'], PointStamped, queue_size=10)
             self.controller_name_right = self.controllers[self.right_serial]
             self.right_initial_orientation = None
             self.right_initial_position = None
@@ -350,7 +350,7 @@ class JoystickNode:
                 position_publisher.publish(self.pose_msg)
 
                 self.gripper_msg.header = self.pose_msg.header
-                self.gripper_msg.point.x = abs(0.2 - menu_button)
+                self.gripper_msg.point.x = abs(menu_button)
                 self.gripper_msg.point.y = 0
                 self.gripper_msg.point.z = 0
                 gripper_publisher.publish(self.gripper_msg)
