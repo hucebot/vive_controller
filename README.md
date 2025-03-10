@@ -57,8 +57,8 @@ sh build_ros1.sh
 
 ``bash
 sh build_ros2.sh
+```
 
--->
 To run the development container, use the following command:
 
 ```bash
@@ -87,13 +87,20 @@ Once Steam is installed, open it and log in with your account. If you don't have
 Then you need to RUN the BETA Version.
 
 ### Using without headset
-Follow this instructions: https://github.com/username223/SteamVRNoHeadset
-Edit Files: *Steam Directory*/steamapps/common/SteamVR/drivers/null/resources/settings/default.vrsettings
-Edite Files: *Steam Directory*/steamapps/common/SteamVR/resources/settings/default.vrsettings
+Follow this instructions: https://github.com/username223/SteamVRoNoHeadset
+
+Basically you need to edit the following files:
+- **default.vrsettings** located in **Steam Directory**/steamapps/common/SteamVR/drivers/null/resources/settings/default.vrsettings
+  - On the null driver secction replace: **"enable": true** to **"enable": false**
+- **default.vrsettings** located in **Steam Directory**/steamapps/common/SteamVR/resources/settings/default.vrsettings
+  - On the steamvr section replace: **"requireHmd": true** to **"requireHmd": false**
+  - On the steamvr section replace: **"forcedDriver": ""** to **"forcedDriver": "null"**
+  - On the steamvr section replace: **"activateMultipleDrivers": true** to **"activateMultipleDrivers": false**
+
+On the `steamvr_config` folder there are 3 examples of this files.
 
 ### Connect Devices
-Once SteamVR is installed, open it and go to the settings. In the settings, go the paired devices and pair your Vive Tracker and Vive Joystick. You can also pair your Vive Base Station if you have one.
-Once the devices are paired, you will see a small window with the devices and their status. Make sure that all devices are connected. Finally, you can close SteamVR.
+Once SteamVR is installed, open it and go to the settings. In the settings, go the paired devices and pair your Vive Tracker and Vive Joystick. Once the devices are paired, you will see a small window with the devices and their status. Make sure that all devices are connected. Finally, you can close SteamVR.
 
 ## ROS
 
