@@ -48,8 +48,9 @@ RUN apt-get update && apt-get install -y \
 
 ###### Upgrade pip & Install python packages
 RUN python3 -m pip install --upgrade pip
-RUN pip install openvr
-RUN pip install scipy
+RUN pip install openvr \
+    scipy 
+RUN pip install OneEuroFilter --upgrade
 
 ###### Source the ROS setup.bash
 RUN echo "source /opt/ros/noetic/setup.bash" >> /root/.bashrc

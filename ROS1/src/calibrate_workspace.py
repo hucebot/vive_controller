@@ -61,6 +61,9 @@ class CalibrationWS:
                 self.all_points.append((y_pos, x_pos, z_pos))
                 self.publish_pointcloud()
 
+            else:
+                rospy.logwarn("Not receiving pose data from controller. Move the controller to get data.")
+
             self.rate.sleep()
 
     def publish_pointcloud(self):

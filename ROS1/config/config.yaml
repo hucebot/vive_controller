@@ -12,14 +12,14 @@ general:
   move_base_linear_y_topic: /dxl_input/linear_y
   node_name: vice_controllers
   publish_markers: true
-  rate: 50
+  rate: 100
   right_gripper_topic: /dxl_input/gripper_right
   right_marker_topic: /dxl_input/marker_right
   right_position_topic: /dxl_input/pos_right
   robot: tiago
   space_scale: 1.0
-  talos_gripper_topic: /dxl_input/gripper
-  talos_position_topic: /dxl_input/pose
+  talos_right_gripper_topic: /dxl_input/gripper
+  talos_right_position_topic: /dxl_input/pose
   use_left_controller: false
   use_right_controller: true
   workspace_limit: 0.1
@@ -37,14 +37,10 @@ htc_vive:
     name: head_tracker
     serial: LHR-631A5257
     type: tracker
-kalman_filter:
-  frequency: 50
-  measurement_dim: 6
-  state_dim: 6
 workspace:
-  x_max: -1.18
-  x_min: -2.33
-  y_max: 0.19
-  y_min: -0.88
-  z_max: -0.21
-  z_min: -1.51
+  x_max: -1.1
+  x_min: -2.46
+  y_max: 0.9
+  y_min: -0.77
+  z_max: -0.05
+  z_min: -1.29
