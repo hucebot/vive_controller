@@ -234,12 +234,20 @@ class JoystickNode:
             actual_pose_marker.pose.position.x = py
             actual_pose_marker.pose.position.y = px
             actual_pose_marker.pose.position.z = pz
-            actual_pose_marker.pose.orientation.w = 1.0
+            q = quaternion_from_euler(
+                math.radians(euler_pose[3]),
+                math.radians(euler_pose[5]),
+                math.radians(euler_pose[4])
+            )
+            actual_pose_marker.pose.orientation.x = q[0]
+            actual_pose_marker.pose.orientation.y = q[1]
+            actual_pose_marker.pose.orientation.z = q[2]
+            actual_pose_marker.pose.orientation.w = q[3]
             actual_pose_marker.color.r = 1.0
             actual_pose_marker.color.g = 0.0
             actual_pose_marker.color.b = 0.0
             actual_pose_marker.color.a = 1.0
-            self.actual_pose_marker_pub.publish(actual_pose_marker)
+            self.publish_axes_marker("ci/world", actual_pose_marker.pose, self.actual_pose_marker_pub)
 
         if side == "right" and self.use_right_controller:
             if self.right_initial_orientation is None:
