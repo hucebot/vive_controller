@@ -6,7 +6,25 @@ import yaml
 
 from functools import lru_cache
 
-#Convert the standard 3x4 position/rotation matrix to a x,y,z location and the appropriate Euler angles (in degrees)
+def convert_to_quaternion(pose_mat):
+    r_w = math.sqrt(abs(1+pose_mat[0][0]+pose_mat[1][1]+pose_mat[2][2]))/2
+    if abs(r_w) > 1e-6:
+        r_x = (pose_mat[2][1]-pose_mat[1][2])/(4*r_w)
+        r_y = (pose_mat[0][2]-pose_mat[2][0])/(4*r_w)
+        r_z = (pose_mat[1][0]-pose_mat[0][1])/(4*r_w)
+
+    else:
+        r_x = 0.0
+        r_y = 0.0
+        r_z = 0.0
+        r_w = 1.0
+
+    x = pose_mat[0][3]
+    y = pose_mat[1][3]
+    z = pose_mat[2][3]
+
+    return [x,y,z,r_x,r_y,r_z,r_w]
+
 def convert_to_euler(pose_mat):
     yaw = 180 / math.pi * math.atan2(pose_mat[1][0], pose_mat[0][0])
     pitch = 180 / math.pi * math.atan2(pose_mat[2][0], pose_mat[0][0])
@@ -83,10 +101,19 @@ class vr_tracked_device():
             if sleep_time>0:
                 time.sleep(sleep_time)
         return rtn
+    
+    def get_pose_quaternion(self, pose=None):
+        if pose == None:
+            pose = get_pose(self.vr)
+        if pose[self.index].bPoseIsValid:
+            return convert_to_quaternion(pose[self.index].mDeviceToAbsoluteTracking)
+        else:
+            return None
 
     def get_pose_euler(self, pose=None):
         if pose == None:
             pose = get_pose(self.vr)
+            print(pose)
         if pose[self.index].bPoseIsValid:
             return convert_to_euler(pose[self.index].mDeviceToAbsoluteTracking)
         else:
