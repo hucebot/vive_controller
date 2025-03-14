@@ -7,7 +7,7 @@ Panels:
         - /Global Options1
         - /Axes1
       Splitter Ratio: 0.5
-    Tree Height: 752
+    Tree Height: 365
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -58,7 +58,7 @@ Visualization Manager:
           Marker Topic: /dxl_input/marker_right
           Name: robot_pose
           Namespaces:
-            {}
+            joystick_axes: true
           Queue Size: 100
           Value: true
         - Class: rviz/Marker
@@ -116,7 +116,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 3.4320361614227295
+      Distance: 7.466738700866699
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -124,17 +124,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -0.09410763531923294
-        Y: -0.3934398889541626
-        Z: -0.07160380482673645
+        X: -0.35076507925987244
+        Y: -0.49489325284957886
+        Z: -0.8650198578834534
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8053984045982361
+      Pitch: 0.4603988528251648
       Target Frame: <Fixed Frame>
-      Yaw: 3.158580780029297
+      Yaw: 2.7785842418670654
     Saved: ~
 Window Geometry:
   Displays:
@@ -152,5 +152,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1280
-  X: 1280
-  Y: 360
+  X: 0
+  Y: 195

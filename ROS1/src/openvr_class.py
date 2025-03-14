@@ -3,27 +3,31 @@ import sys
 import openvr
 import math
 import yaml
+from scipy.spatial.transform import Rotation as R
+import numpy as np
 
 from functools import lru_cache
 
 def convert_to_quaternion(pose_mat):
-    r_w = math.sqrt(abs(1+pose_mat[0][0]+pose_mat[1][1]+pose_mat[2][2]))/2
-    if abs(r_w) > 1e-6:
-        r_x = (pose_mat[2][1]-pose_mat[1][2])/(4*r_w)
-        r_y = (pose_mat[0][2]-pose_mat[2][0])/(4*r_w)
-        r_z = (pose_mat[1][0]-pose_mat[0][1])/(4*r_w)
+    vector_1 = pose_mat[0][:3]  # [r11, r12, r13]
+    vector_2 = pose_mat[1][:3]  # [r21, r22, r23]
+    vector_3 = pose_mat[2][:3]  # [r31, r32, r33]
+    rot_matrix = np.array([vector_1, vector_2, vector_3])
+    translation_vector = np.array([
+        pose_mat[0][3],
+        pose_mat[1][3],
+        pose_mat[2][3]
+    ])
 
-    else:
-        r_x = 0.0
-        r_y = 0.0
-        r_z = 0.0
-        r_w = 1.0
+    # R_fix = np.array([[0,1,0],[1,0,0],[0,0 ,1]])
+    # rot_matrix = R_fix @ rot_matrix
 
-    x = pose_mat[0][3]
-    y = pose_mat[1][3]
-    z = pose_mat[2][3]
+    p_final = translation_vector
 
-    return [x,y,z,r_x,r_y,r_z,r_w]
+    qx, qy, qz, qw = R.from_matrix(rot_matrix).as_quat()
+
+    return [p_final[0], p_final[1], p_final[2], qx, qy, qz, qw]
+
 
 def convert_to_euler(pose_mat):
     yaw = 180 / math.pi * math.atan2(pose_mat[1][0], pose_mat[0][0])
