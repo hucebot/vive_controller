@@ -87,11 +87,10 @@ Once Steam is installed, open it and log in with your account. If you don't have
 Then you need to RUN the BETA Version.
 
 ### Using without headset
-Follow this instructions: https://github.com/username223/SteamVRoNoHeadset
 
 Basically you need to edit the following files:
 - **default.vrsettings** located in **Steam Directory**/steamapps/common/SteamVR/drivers/null/resources/settings/default.vrsettings
-  - On the null driver secction replace: **"enable": true** to **"enable": false**
+  - On the null driver secction replace: **"enable": false** to **"enable": true**
 - **default.vrsettings** located in **Steam Directory**/steamapps/common/SteamVR/resources/settings/default.vrsettings
   - On the steamvr section replace: **"requireHmd": true** to **"requireHmd": false**
   - On the steamvr section replace: **"forcedDriver": ""** to **"forcedDriver": "null"**

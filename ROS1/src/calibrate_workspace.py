@@ -55,10 +55,10 @@ class CalibrationWS:
             euler_pose = self.v.devices[self.controller_name_right].get_pose_euler()
             if euler_pose is not None:
                 x_pos = euler_pose[0]
-                y_pos = euler_pose[2]
-                z_pos = euler_pose[1]
+                y_pos = euler_pose[1]
+                z_pos = euler_pose[2]
 
-                self.all_points.append((y_pos, x_pos, z_pos))
+                self.all_points.append((x_pos, y_pos, z_pos))
                 self.publish_pointcloud()
 
             else:

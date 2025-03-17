@@ -48,7 +48,7 @@ RUN apt-get update && apt-get install -y \
 
 ###### Upgrade pip & Install python packages
 RUN python3 -m pip install --upgrade pip
-RUN pip install openvr \
+RUN pip install openvr==2.5.101 \
     scipy 
 RUN pip install OneEuroFilter --upgrade
 

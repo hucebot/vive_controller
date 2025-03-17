@@ -4,9 +4,40 @@ import openvr
 import math
 import yaml
 
-from functools import lru_cache
 
-#Convert the standard 3x4 position/rotation matrix to a x,y,z location and the appropriate Euler angles (in degrees)
+import numpy as np
+
+from functools import lru_cache
+from scipy.spatial.transform import Rotation as R
+
+def convert_to_quaternion(pose_mat):
+    vector_1 = pose_mat[0][:3]
+    vector_2 = pose_mat[1][:3]
+    vector_3 = pose_mat[2][:3]
+    rot_matrix = np.array([vector_1, vector_2, vector_3])
+    translation_vector = np.array([
+        pose_mat[0][3],
+        pose_mat[1][3],
+        pose_mat[2][3]
+    ])
+
+    p_final = translation_vector
+
+    rot_vive_to_world = R.from_euler('Y', 90, degrees=True) * R.from_euler('X', -90, degrees=True)
+    rot_vive_to_world = rot_vive_to_world.as_matrix()
+
+    rot_match_convention = R.from_euler('z', 90, degrees=True) * R.from_euler('X', 90, degrees=True)
+    rot_match_convention = rot_match_convention.as_matrix()
+
+    rot_matrix = rot_match_convention @ ( rot_matrix @ rot_vive_to_world)
+    p_final = p_final @ (rot_vive_to_world @ rot_match_convention)
+
+
+    qx, qy, qz, qw = R.from_matrix(rot_matrix).as_quat()
+
+    return [-p_final[2], -p_final[0], p_final[1], qx, qy, qz, qw]
+
+
 def convert_to_euler(pose_mat):
     yaw = 180 / math.pi * math.atan2(pose_mat[1][0], pose_mat[0][0])
     pitch = 180 / math.pi * math.atan2(pose_mat[2][0], pose_mat[0][0])
@@ -83,10 +114,19 @@ class vr_tracked_device():
             if sleep_time>0:
                 time.sleep(sleep_time)
         return rtn
+    
+    def get_pose_quaternion(self, pose=None):
+        if pose == None:
+            pose = get_pose(self.vr)
+        if pose[self.index].bPoseIsValid:
+            return convert_to_quaternion(pose[self.index].mDeviceToAbsoluteTracking)
+        else:
+            return None
 
     def get_pose_euler(self, pose=None):
         if pose == None:
             pose = get_pose(self.vr)
+            print(pose)
         if pose[self.index].bPoseIsValid:
             return convert_to_euler(pose[self.index].mDeviceToAbsoluteTracking)
         else:

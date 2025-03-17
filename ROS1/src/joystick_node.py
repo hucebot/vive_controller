@@ -7,6 +7,8 @@ from visualization_msgs.msg import Marker
 from tf.transformations import quaternion_from_euler, quaternion_multiply, quaternion_inverse, euler_from_quaternion
 from OneEuroFilter import OneEuroFilter
 
+import tf
+
 def read_yaml(path):
     with open(path, 'r') as stream:
         return yaml.safe_load(stream)
@@ -27,6 +29,8 @@ class JoystickNode:
         self.linear_scale = self.configurations['general']['linear_scale']
         self.angular_scale = self.configurations['general']['angular_scale']
         self.move_base = self.configurations['general']['move_base']
+
+        self.tf_br = tf.TransformBroadcaster()
 
         if self.use_right_controller:
             self.right_serial = self.configurations['htc_vive']['controller_1']['serial']
@@ -64,6 +68,11 @@ class JoystickNode:
                     Marker,
                     queue_size=10
                 )
+                self.auxiliar_marker_publisher_right = rospy.Publisher(
+                    '/auxiliar_marker_right',
+                    Marker,
+                    queue_size=10
+                )
             if self.move_base:
                 self.move_base_angular_publisher = rospy.Publisher(
                     self.configurations['general']['move_base_angular_topic'],
@@ -96,6 +105,7 @@ class JoystickNode:
                     Marker,
                     queue_size=10
                 )
+
             if self.move_base:
                 self.move_base_linear_x_publisher = rospy.Publisher(
                     self.configurations['general']['move_base_linear_x_topic'],
@@ -130,15 +140,19 @@ class JoystickNode:
         self.right_filter_x = OneEuroFilter(**cfg)
         self.right_filter_y = OneEuroFilter(**cfg)
         self.right_filter_z = OneEuroFilter(**cfg)
-        self.right_filter_roll = OneEuroFilter(**cfg)
-        self.right_filter_pitch = OneEuroFilter(**cfg)
-        self.right_filter_yaw = OneEuroFilter(**cfg)
+        self.right_filter_qx = OneEuroFilter(**cfg)
+        self.right_filter_qy = OneEuroFilter(**cfg)
+        self.right_filter_qz = OneEuroFilter(**cfg)
+        self.right_filter_qw = OneEuroFilter(**cfg)
+
         self.left_filter_x = OneEuroFilter(**cfg)
         self.left_filter_y = OneEuroFilter(**cfg)
         self.left_filter_z = OneEuroFilter(**cfg)
-        self.left_filter_roll = OneEuroFilter(**cfg)
-        self.left_filter_pitch = OneEuroFilter(**cfg)
-        self.left_filter_yaw = OneEuroFilter(**cfg)
+        self.left_filter_qx = OneEuroFilter(**cfg)
+        self.left_filter_qy = OneEuroFilter(**cfg)
+        self.left_filter_qz = OneEuroFilter(**cfg)
+        self.left_filter_qw = OneEuroFilter(**cfg)
+
 
         self.main_loop()
 
@@ -170,7 +184,7 @@ class JoystickNode:
             m.pose.orientation.z = q_final[2]
             m.pose.orientation.w = q_final[3]
             return m
-        q_id = [0, 0, 0, 1]
+        q_id = quaternion_from_euler(0, 0, 0)
         q_y = quaternion_from_euler(0, 0, math.pi/2)
         q_z = quaternion_from_euler(0, -math.pi/2, 0)
         marker_x = make_arrow_marker(0, (1.0, 0.0, 0.0), q_id)
@@ -179,6 +193,29 @@ class JoystickNode:
         marker_publisher.publish(marker_x)
         marker_publisher.publish(marker_y)
         marker_publisher.publish(marker_z)
+
+        arrow_maker = Marker()
+        arrow_maker.header.frame_id = frame_id
+        arrow_maker.header.stamp = rospy.Time.now()
+        arrow_maker.ns = "auxiliar"
+        arrow_maker.id = 0
+        arrow_maker.type = Marker.ARROW
+        arrow_maker.action = Marker.ADD
+        arrow_maker.scale.x = 0.1
+        arrow_maker.scale.y = 0.02
+        arrow_maker.scale.z = 0.02
+        arrow_maker.color.a = 1.0
+        arrow_maker.color.r = 1.0
+        arrow_maker.color.g = 1.0
+        arrow_maker.color.b = 1.0
+        arrow_maker.pose.position.x = pose.position.x
+        arrow_maker.pose.position.y = pose.position.y
+        arrow_maker.pose.position.z = pose.position.z
+        arrow_maker.pose.orientation.x = pose.orientation.x
+        arrow_maker.pose.orientation.y = pose.orientation.y
+        arrow_maker.pose.orientation.z = pose.orientation.z
+        arrow_maker.pose.orientation.w = pose.orientation.w
+        self.auxiliar_marker_publisher_right.publish(arrow_maker)
 
     def publish_workspace_bbox_marker(self):
         marker = Marker()
@@ -202,18 +239,23 @@ class JoystickNode:
         self.workspace_marker_pub.publish(marker)
 
     def parse_data_device(self, device, side, position_publisher, gripper_publisher, marker_publisher,
-                          fx_filter, fy_filter, fz_filter, fr_filter, fp_filter, fw_filter):
-        euler_pose = device.get_pose_euler()
+                          fx_filter, fy_filter, fz_filter, qx_filter, qy_filter, qz_filter, qw_filter):
+        quaternion_pose = device.get_pose_quaternion()
         controller_inputs = device.get_controller_inputs()
-        if euler_pose is None or controller_inputs is None:
+
+        if quaternion_pose is None or controller_inputs is None:
             rospy.logwarn("No data received from device. Move the controller to receive data.")
             return
-        px, py, pz = euler_pose[0], euler_pose[2], euler_pose[1]
-        if (px < self.y_min + self.workspace_limit or px > self.y_max - self.workspace_limit or
-            py < self.x_min + self.workspace_limit or py > self.x_max - self.workspace_limit or
-            pz < self.z_min + self.workspace_limit or pz > self.z_max - self.workspace_limit):
-            device.trigger_haptic_pulse(1000, 0)
-            return
+        
+        px, py, pz = quaternion_pose[0:3]
+        qx, qy, qz, qw = quaternion_pose[3:7]
+
+        # if (px < self.x_min + self.workspace_limit or px > self.x_max - self.workspace_limit or
+        #     py < self.y_min + self.workspace_limit or py > self.y_max - self.workspace_limit or
+        #     pz < self.z_min + self.workspace_limit or pz > self.z_max - self.workspace_limit):
+        #     device.trigger_haptic_pulse(1000, 0)
+        #     return
+        
         trigger_value = controller_inputs.get('trigger', 0)
         trackpad_pressed = controller_inputs.get('trackpad_pressed', 0)
         trackpad_touched = controller_inputs.get('trackpad_touched', 0)
@@ -231,79 +273,62 @@ class JoystickNode:
             actual_pose_marker.scale.x = 0.05
             actual_pose_marker.scale.y = 0.05
             actual_pose_marker.scale.z = 0.05
-            actual_pose_marker.pose.position.x = py
-            actual_pose_marker.pose.position.y = px
+            actual_pose_marker.pose.position.x = px
+            actual_pose_marker.pose.position.y = py
             actual_pose_marker.pose.position.z = pz
-            actual_pose_marker.pose.orientation.w = 1.0
+
+            actual_pose_marker.pose.orientation.x = qx
+            actual_pose_marker.pose.orientation.y = qy
+            actual_pose_marker.pose.orientation.z = qz
+            actual_pose_marker.pose.orientation.w = qw
             actual_pose_marker.color.r = 1.0
             actual_pose_marker.color.g = 0.0
             actual_pose_marker.color.b = 0.0
             actual_pose_marker.color.a = 1.0
-            self.actual_pose_marker_pub.publish(actual_pose_marker)
+            self.publish_axes_marker("ci/world", actual_pose_marker.pose, self.actual_pose_marker_pub)
+
+            self.tf_br.sendTransform((px, py, pz), (qx, qy, qz, qw), rospy.Time.now(), "vive_raw", "ci/world")
 
         if side == "right" and self.use_right_controller:
             if self.right_initial_orientation is None:
-                self.right_initial_orientation = quaternion_from_euler(
-                    math.radians(euler_pose[3]),
-                    math.radians(euler_pose[5]),
-                    math.radians(euler_pose[4])
-                )
+                self.right_initial_orientation = [qx, qy, qz, qw]
             if gripper_button:
-                self.right_initial_orientation = quaternion_from_euler(
-                    math.radians(euler_pose[3]),
-                    math.radians(euler_pose[5]),
-                    math.radians(euler_pose[4])
-                )
+                self.right_initial_orientation = [qx, qy, qz, qw]
             if trigger_value < 0.5:
                 if self.right_trigger_active:
                     self.right_trigger_active = False
-                    self.right_cumulative_x += euler_pose[0] - self.right_reference_position[0]
-                    self.right_cumulative_y += euler_pose[2] - self.right_reference_position[2]
-                    self.right_cumulative_z += euler_pose[1] - self.right_reference_position[1]
+                    self.right_cumulative_x += px - self.right_reference_position[0]
+                    self.right_cumulative_y += py - self.right_reference_position[1]
+                    self.right_cumulative_z += pz - self.right_reference_position[2]
             else:
                 if not self.right_trigger_active:
                     self.right_trigger_active = True
-                    self.right_reference_position = euler_pose[:3]
+                    self.right_reference_position = [px, py, pz]
                 if trackpad_touched and trackpad_pressed and self.move_base:
                     trackpad_x = controller_inputs.get('trackpad_x', 0)
                     vel_ang = trackpad_x * self.angular_scale
                     self.move_base_angular_publisher.publish(vel_ang)
-                dx = euler_pose[0] - self.right_reference_position[0]
-                dy = euler_pose[2] - self.right_reference_position[2]
-                dz = euler_pose[1] - self.right_reference_position[1]
+                dx = px - self.right_reference_position[0]
+                dy = py - self.right_reference_position[1]
+                dz = pz - self.right_reference_position[2]
                 out_x = self.right_cumulative_x + dx
                 out_y = self.right_cumulative_y + dy
                 out_z = self.right_cumulative_z + dz
                 filtered_pose_x = fx_filter(out_x, rospy.Time.now().to_sec())
                 filtered_pose_y = fy_filter(out_y, rospy.Time.now().to_sec())
                 filtered_pose_z = fz_filter(out_z, rospy.Time.now().to_sec())
-                q0_inv = quaternion_inverse(self.right_initial_orientation)
-                q_current = quaternion_from_euler(
-                    math.radians(euler_pose[3]),
-                    math.radians(euler_pose[5]),
-                    math.radians(euler_pose[4])
-                )
-                q_rel = quaternion_multiply(q0_inv, q_current)
-                q_rel = (q_rel[0], q_rel[1], -q_rel[2], q_rel[3])
-                r_rel, p_rel, y_rel = euler_from_quaternion(q_rel)
-                roll = math.degrees(r_rel)
-                pitch = math.degrees(p_rel)
-                yaw = math.degrees(y_rel)
-                filtered_roll = fr_filter(roll, rospy.Time.now().to_sec())
-                filtered_pitch = fp_filter(pitch, rospy.Time.now().to_sec())
-                filtered_yaw = fw_filter(yaw, rospy.Time.now().to_sec())
-                filtered_q = quaternion_from_euler(
-                    math.radians(filtered_roll),
-                    math.radians(filtered_pitch),
-                    math.radians(filtered_yaw)
-                )
-                self.pose_msg.pose.position.x = filtered_pose_y
-                self.pose_msg.pose.position.y = filtered_pose_x
+                filtered_qx = qx_filter(qx, rospy.Time.now().to_sec())
+                filtered_qy = qy_filter(qy, rospy.Time.now().to_sec())
+                filtered_qz = qz_filter(qz, rospy.Time.now().to_sec())
+                filtered_qw = qw_filter(qw, rospy.Time.now().to_sec())
+
+                self.pose_msg.pose.position.x = filtered_pose_x
+                self.pose_msg.pose.position.y = filtered_pose_y
                 self.pose_msg.pose.position.z = filtered_pose_z
-                self.pose_msg.pose.orientation.x = filtered_q[0]
-                self.pose_msg.pose.orientation.y = filtered_q[1]
-                self.pose_msg.pose.orientation.z = filtered_q[2]
-                self.pose_msg.pose.orientation.w = filtered_q[3]
+                self.pose_msg.pose.orientation.x = filtered_qx
+                self.pose_msg.pose.orientation.y = filtered_qy
+                self.pose_msg.pose.orientation.z = filtered_qz
+                self.pose_msg.pose.orientation.w = filtered_qw
                 self.pose_msg.header.frame_id = "ci/world"
                 self.pose_msg.header.stamp = rospy.Time.now()
                 position_publisher.publish(self.pose_msg)
@@ -315,82 +340,82 @@ class JoystickNode:
                 if self.publish_markers:
                     self.publish_axes_marker("ci/world", self.pose_msg.pose, marker_publisher)
 
-        if side == "left" and self.use_left_controller:
-            if self.left_initial_orientation is None:
-                self.left_initial_orientation = quaternion_from_euler(
-                    math.radians(euler_pose[3]),
-                    math.radians(euler_pose[5]),
-                    math.radians(euler_pose[4])
-                )
-            if gripper_button:
-                self.left_initial_orientation = quaternion_from_euler(
-                    math.radians(euler_pose[3]),
-                    math.radians(euler_pose[5]),
-                    math.radians(euler_pose[4])
-                )
-            if trigger_value < 0.5:
-                if self.left_trigger_active:
-                    self.left_trigger_active = False
-                    self.left_cumulative_x += euler_pose[0] - self.left_reference_position[0]
-                    self.left_cumulative_y += euler_pose[2] - self.left_reference_position[2]
-                    self.left_cumulative_z += euler_pose[1] - self.left_reference_position[1]
-            else:
-                if not self.left_trigger_active:
-                    self.left_trigger_active = True
-                    self.left_reference_position = euler_pose[:3]
-                if trackpad_touched and trackpad_pressed and self.move_base:
-                    trackpad_x = controller_inputs.get('trackpad_x', 0)
-                    trackpad_y = controller_inputs.get('trackpad_y', 0)
-                    vel_x = trackpad_x * self.linear_scale
-                    vel_y = trackpad_y * self.linear_scale
-                    self.move_base_linear_x_publisher.publish(vel_x)
-                    self.move_base_linear_y_publisher.publish(vel_y)
-                dx = euler_pose[0] - self.left_reference_position[0]
-                dy = euler_pose[2] - self.left_reference_position[2]
-                dz = euler_pose[1] - self.left_reference_position[1]
-                out_x = self.left_cumulative_x + dx
-                out_y = self.left_cumulative_y + dy
-                out_z = self.left_cumulative_z + dz
-                filtered_pose_x = fx_filter(out_x, rospy.Time.now().to_sec())
-                filtered_pose_y = fy_filter(out_y, rospy.Time.now().to_sec())
-                filtered_pose_z = fz_filter(out_z, rospy.Time.now().to_sec())
-                q0_inv = quaternion_inverse(self.left_initial_orientation)
-                q_current = quaternion_from_euler(
-                    math.radians(euler_pose[3]),
-                    math.radians(euler_pose[5]),
-                    math.radians(euler_pose[4])
-                )
-                q_rel = quaternion_multiply(q0_inv, q_current)
-                q_rel = (q_rel[0], q_rel[1], -q_rel[2], q_rel[3])
-                r_rel, p_rel, y_rel = euler_from_quaternion(q_rel)
-                roll = math.degrees(r_rel)
-                pitch = math.degrees(p_rel)
-                yaw = math.degrees(y_rel)
-                filtered_roll = fr_filter(roll, rospy.Time.now().to_sec())
-                filtered_pitch = fp_filter(pitch, rospy.Time.now().to_sec())
-                filtered_yaw = fw_filter(yaw, rospy.Time.now().to_sec())
-                filtered_q = quaternion_from_euler(
-                    math.radians(filtered_roll),
-                    math.radians(filtered_pitch),
-                    math.radians(filtered_yaw)
-                )
-                self.pose_msg.pose.position.x = filtered_pose_y
-                self.pose_msg.pose.position.y = filtered_pose_x
-                self.pose_msg.pose.position.z = filtered_pose_z
-                self.pose_msg.pose.orientation.x = filtered_q[0]
-                self.pose_msg.pose.orientation.y = filtered_q[1]
-                self.pose_msg.pose.orientation.z = filtered_q[2]
-                self.pose_msg.pose.orientation.w = filtered_q[3]
-                self.pose_msg.header.frame_id = "ci/world"
-                self.pose_msg.header.stamp = rospy.Time.now()
-                position_publisher.publish(self.pose_msg)
-                self.gripper_msg.header = self.pose_msg.header
-                self.gripper_msg.point.x = abs(menu_button)
-                self.gripper_msg.point.y = 0
-                self.gripper_msg.point.z = 0
-                gripper_publisher.publish(self.gripper_msg)
-                if self.publish_markers:
-                    self.publish_axes_marker("ci/world", self.pose_msg.pose, marker_publisher)
+        # if side == "left" and self.use_left_controller:
+        #     if self.left_initial_orientation is None:
+        #         self.left_initial_orientation = quaternion_from_euler(
+        #             math.radians(euler_pose[3]),
+        #             math.radians(euler_pose[5]),
+        #             math.radians(euler_pose[4])
+        #         )
+        #     if gripper_button:
+        #         self.left_initial_orientation = quaternion_from_euler(
+        #             math.radians(euler_pose[3]),
+        #             math.radians(euler_pose[5]),
+        #             math.radians(euler_pose[4])
+        #         )
+        #     if trigger_value < 0.5:
+        #         if self.left_trigger_active:
+        #             self.left_trigger_active = False
+        #             self.left_cumulative_x += euler_pose[0] - self.left_reference_position[0]
+        #             self.left_cumulative_y += euler_pose[1] - self.left_reference_position[1]
+        #             self.left_cumulative_z += euler_pose[2] - self.left_reference_position[2]
+        #     else:
+        #         if not self.left_trigger_active:
+        #             self.left_trigger_active = True
+        #             self.left_reference_position = euler_pose[:3]
+        #         if trackpad_touched and trackpad_pressed and self.move_base:
+        #             trackpad_x = controller_inputs.get('trackpad_x', 0)
+        #             trackpad_y = controller_inputs.get('trackpad_y', 0)
+        #             vel_x = trackpad_x * self.linear_scale
+        #             vel_y = trackpad_y * self.linear_scale
+        #             self.move_base_linear_x_publisher.publish(vel_x)
+        #             self.move_base_linear_y_publisher.publish(vel_y)
+        #         dx = euler_pose[0] - self.left_reference_position[0]
+        #         dy = euler_pose[1] - self.left_reference_position[1]
+        #         dz = euler_pose[2] - self.left_reference_position[2]
+        #         out_x = self.left_cumulative_x + dx
+        #         out_y = self.left_cumulative_y + dy
+        #         out_z = self.left_cumulative_z + dz
+        #         filtered_pose_x = fx_filter(out_x, rospy.Time.now().to_sec())
+        #         filtered_pose_y = fy_filter(out_y, rospy.Time.now().to_sec())
+        #         filtered_pose_z = fz_filter(out_z, rospy.Time.now().to_sec())
+        #         q0_inv = quaternion_inverse(self.left_initial_orientation)
+        #         q_current = quaternion_from_euler(
+        #             math.radians(euler_pose[3]),
+        #             math.radians(euler_pose[5]),
+        #             math.radians(euler_pose[4])
+        #         )
+        #         q_rel = quaternion_multiply(q0_inv, q_current)
+        #         q_rel = (q_rel[0], q_rel[1], -q_rel[2], q_rel[3])
+        #         r_rel, p_rel, y_rel = euler_from_quaternion(q_rel)
+        #         roll = math.degrees(r_rel)
+        #         pitch = math.degrees(p_rel)
+        #         yaw = math.degrees(y_rel)
+        #         filtered_roll = fr_filter(roll, rospy.Time.now().to_sec())
+        #         filtered_pitch = fp_filter(pitch, rospy.Time.now().to_sec())
+        #         filtered_yaw = fw_filter(yaw, rospy.Time.now().to_sec())
+        #         filtered_q = quaternion_from_euler(
+        #             math.radians(filtered_roll),
+        #             math.radians(filtered_pitch),
+        #             math.radians(filtered_yaw)
+        #         )
+        #         self.pose_msg.pose.position.x = filtered_pose_x
+        #         self.pose_msg.pose.position.y = filtered_pose_y
+        #         self.pose_msg.pose.position.z = filtered_pose_z
+        #         self.pose_msg.pose.orientation.x = filtered_q[0]
+        #         self.pose_msg.pose.orientation.y = filtered_q[1]
+        #         self.pose_msg.pose.orientation.z = filtered_q[2]
+        #         self.pose_msg.pose.orientation.w = filtered_q[3]
+        #         self.pose_msg.header.frame_id = "ci/world"
+        #         self.pose_msg.header.stamp = rospy.Time.now()
+        #         position_publisher.publish(self.pose_msg)
+        #         self.gripper_msg.header = self.pose_msg.header
+        #         self.gripper_msg.point.x = abs(menu_button)
+        #         self.gripper_msg.point.y = 0
+        #         self.gripper_msg.point.z = 0
+        #         gripper_publisher.publish(self.gripper_msg)
+        #         if self.publish_markers:
+        #             self.publish_axes_marker("ci/world", self.pose_msg.pose, marker_publisher)
 
     def main_loop(self):
         while not rospy.is_shutdown():
@@ -404,9 +429,10 @@ class JoystickNode:
                     self.right_filter_x,
                     self.right_filter_y,
                     self.right_filter_z,
-                    self.right_filter_roll,
-                    self.right_filter_pitch,
-                    self.right_filter_yaw
+                    self.right_filter_qx,
+                    self.right_filter_qy,
+                    self.right_filter_qz,
+                    self.right_filter_qw
                 )
             if self.use_left_controller:
                 self.parse_data_device(
@@ -418,9 +444,10 @@ class JoystickNode:
                     self.left_filter_x,
                     self.left_filter_y,
                     self.left_filter_z,
-                    self.left_filter_roll,
-                    self.left_filter_pitch,
-                    self.left_filter_yaw
+                    self.left_filter_qx,
+                    self.left_filter_qy,
+                    self.left_filter_qz,
+                    self.left_filter_qw
                 )
             if self.publish_markers:
                 self.publish_workspace_bbox_marker()

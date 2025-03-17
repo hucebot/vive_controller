@@ -22,7 +22,7 @@ general:
   talos_right_position_topic: /dxl_input/pose
   use_left_controller: false
   use_right_controller: true
-  workspace_limit: 0.1
+  workspace_limit: 0.0
   z_threshold: 1.8
 htc_vive:
   controller_1:
@@ -37,10 +37,14 @@ htc_vive:
     name: head_tracker
     serial: LHR-631A5257
     type: tracker
+one_euro_filter:
+  beta: 0.1
+  cutoff: 1.0
+  mincutoff: 1.0
 workspace:
-  x_max: -1.1
-  x_min: -2.46
-  y_max: 0.9
-  y_min: -0.77
-  z_max: -0.05
-  z_min: -1.29
+  x_max: -0.43
+  x_min: -1.24
+  y_max: 0.45
+  y_min: -0.95
+  z_max: -0.24
+  z_min: -1.35
