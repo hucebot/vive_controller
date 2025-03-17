@@ -22,7 +22,7 @@ general:
   talos_right_position_topic: /dxl_input/pose
   use_left_controller: false
   use_right_controller: true
-  workspace_limit: 0.0
+  workspace_limit: 0.1
   z_threshold: 1.8
 htc_vive:
   controller_1:

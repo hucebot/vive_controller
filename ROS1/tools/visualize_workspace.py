@@ -113,7 +113,7 @@ def plot_convex_hull(points, outliers=None):
         xs = points[simplex, 0]
         ys = points[simplex, 1]
         zs = points[simplex, 2]
-        # Cerramos el polígono
+
         xs = np.append(xs, xs[0])
         ys = np.append(ys, ys[0])
         zs = np.append(zs, zs[0])

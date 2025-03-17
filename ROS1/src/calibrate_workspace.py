@@ -52,11 +52,11 @@ class CalibrationWS:
 
     def main_loop(self):
         while not rospy.is_shutdown():
-            euler_pose = self.v.devices[self.controller_name_right].get_pose_euler()
-            if euler_pose is not None:
-                x_pos = euler_pose[0]
-                y_pos = euler_pose[1]
-                z_pos = euler_pose[2]
+            quaternion_pose = self.v.devices[self.controller_name_right].get_pose_quaternion()
+            if quaternion_pose is not None:
+                x_pos = quaternion_pose[0]
+                y_pos = quaternion_pose[1]
+                z_pos = quaternion_pose[2]
 
                 self.all_points.append((x_pos, y_pos, z_pos))
                 self.publish_pointcloud()
