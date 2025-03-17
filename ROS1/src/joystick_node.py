@@ -6,7 +6,8 @@ from geometry_msgs.msg import PoseStamped, PointStamped
 from visualization_msgs.msg import Marker
 from tf.transformations import quaternion_from_euler, quaternion_multiply, quaternion_inverse, euler_from_quaternion
 from OneEuroFilter import OneEuroFilter
-from scipy.spatial.transform import Rotation as R
+
+import tf
 
 def read_yaml(path):
     with open(path, 'r') as stream:
@@ -28,6 +29,8 @@ class JoystickNode:
         self.linear_scale = self.configurations['general']['linear_scale']
         self.angular_scale = self.configurations['general']['angular_scale']
         self.move_base = self.configurations['general']['move_base']
+
+        self.tf_br = tf.TransformBroadcaster()
 
         if self.use_right_controller:
             self.right_serial = self.configurations['htc_vive']['controller_1']['serial']
@@ -182,8 +185,8 @@ class JoystickNode:
             m.pose.orientation.w = q_final[3]
             return m
         q_id = quaternion_from_euler(0, 0, 0)
-        q_y = quaternion_from_euler(0,0, 0)
-        q_z = quaternion_from_euler(0, 0, 0)
+        q_y = quaternion_from_euler(0, 0, math.pi/2)
+        q_z = quaternion_from_euler(0, -math.pi/2, 0)
         marker_x = make_arrow_marker(0, (1.0, 0.0, 0.0), q_id)
         marker_y = make_arrow_marker(1, (0.0, 1.0, 0.0), q_y)
         marker_z = make_arrow_marker(2, (0.0, 0.0, 1.0), q_z)
@@ -284,6 +287,8 @@ class JoystickNode:
             actual_pose_marker.color.a = 1.0
             self.publish_axes_marker("ci/world", actual_pose_marker.pose, self.actual_pose_marker_pub)
 
+            self.tf_br.sendTransform((px, py, pz), (qx, qy, qz, qw), rospy.Time.now(), "vive_raw", "ci/world")
+
         if side == "right" and self.use_right_controller:
             if self.right_initial_orientation is None:
                 self.right_initial_orientation = [qx, qy, qz, qw]
@@ -312,14 +317,18 @@ class JoystickNode:
                 filtered_pose_x = fx_filter(out_x, rospy.Time.now().to_sec())
                 filtered_pose_y = fy_filter(out_y, rospy.Time.now().to_sec())
                 filtered_pose_z = fz_filter(out_z, rospy.Time.now().to_sec())
+                filtered_qx = qx_filter(qx, rospy.Time.now().to_sec())
+                filtered_qy = qy_filter(qy, rospy.Time.now().to_sec())
+                filtered_qz = qz_filter(qz, rospy.Time.now().to_sec())
+                filtered_qw = qw_filter(qw, rospy.Time.now().to_sec())
 
                 self.pose_msg.pose.position.x = filtered_pose_x
                 self.pose_msg.pose.position.y = filtered_pose_y
                 self.pose_msg.pose.position.z = filtered_pose_z
-                self.pose_msg.pose.orientation.x = qx
-                self.pose_msg.pose.orientation.y = qy
-                self.pose_msg.pose.orientation.z = qz
-                self.pose_msg.pose.orientation.w = qw
+                self.pose_msg.pose.orientation.x = filtered_qx
+                self.pose_msg.pose.orientation.y = filtered_qy
+                self.pose_msg.pose.orientation.z = filtered_qz
+                self.pose_msg.pose.orientation.w = filtered_qw
                 self.pose_msg.header.frame_id = "ci/world"
                 self.pose_msg.header.stamp = rospy.Time.now()
                 position_publisher.publish(self.pose_msg)

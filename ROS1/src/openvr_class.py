@@ -3,15 +3,17 @@ import sys
 import openvr
 import math
 import yaml
-from scipy.spatial.transform import Rotation as R
+
+
 import numpy as np
 
 from functools import lru_cache
+from scipy.spatial.transform import Rotation as R
 
 def convert_to_quaternion(pose_mat):
-    vector_1 = pose_mat[0][:3]  # [r11, r12, r13]
-    vector_2 = pose_mat[1][:3]  # [r21, r22, r23]
-    vector_3 = pose_mat[2][:3]  # [r31, r32, r33]
+    vector_1 = pose_mat[0][:3]
+    vector_2 = pose_mat[1][:3]
+    vector_3 = pose_mat[2][:3]
     rot_matrix = np.array([vector_1, vector_2, vector_3])
     translation_vector = np.array([
         pose_mat[0][3],
@@ -19,14 +21,21 @@ def convert_to_quaternion(pose_mat):
         pose_mat[2][3]
     ])
 
-    # R_fix = np.array([[0,1,0],[1,0,0],[0,0 ,1]])
-    # rot_matrix = R_fix @ rot_matrix
-
     p_final = translation_vector
+
+    rot_vive_to_world = R.from_euler('Y', 90, degrees=True) * R.from_euler('X', -90, degrees=True)
+    rot_vive_to_world = rot_vive_to_world.as_matrix()
+
+    rot_match_convention = R.from_euler('z', 90, degrees=True) * R.from_euler('X', 90, degrees=True)
+    rot_match_convention = rot_match_convention.as_matrix()
+
+    rot_matrix = rot_match_convention @ ( rot_matrix @ rot_vive_to_world)
+    p_final = p_final @ (rot_vive_to_world @ rot_match_convention)
+
 
     qx, qy, qz, qw = R.from_matrix(rot_matrix).as_quat()
 
-    return [p_final[0], p_final[1], p_final[2], qx, qy, qz, qw]
+    return [-p_final[2], -p_final[0], p_final[1], qx, qy, qz, qw]
 
 
 def convert_to_euler(pose_mat):
