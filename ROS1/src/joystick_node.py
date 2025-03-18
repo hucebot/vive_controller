@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from openvr_class import triad_openvr
+from openvr_class.openvr_class import triad_openvr
 import rospy, math, yaml, numpy as np
 from std_msgs.msg import Float32
 from geometry_msgs.msg import PoseStamped, PointStamped

@@ -1,4 +1,4 @@
-from ros2_vive_controller.tools.openvr_class import triad_openvr
+from ros2_vive_controller.openvr_class.openvr_class import triad_openvr
 
 import rclpy
 import math

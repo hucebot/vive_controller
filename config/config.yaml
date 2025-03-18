@@ -1,26 +1,29 @@
 general:
+  angular_scale: 1.0
   csv_path: /ros_ws/src/ros1_vive_controller/data/
   frame_id: ci/world
   left_gripper_topic: /dxl_input/gripper_left
   left_marker_topic: /dxl_input/marker_left
   left_position_topic: /dxl_input/pos_left
-  node_name: vice_controllers
-  publish_markers: true
-  rate: 50
-  right_gripper_topic: /dxl_input/gripper_right
-  right_marker_topic: /dxl_input/marker_right
-  right_position_topic: /dxl_input/pos_right
-  space_scale: 1.0
-  use_left_controller: false
-  use_right_controller: true
-  workspace_limit: 0.20
-  z_threshold: 1.8
   linear_scale: 1.0
-  angular_scale: 1.0
   move_base: false
   move_base_angular_topic: /dxl_input/angular
   move_base_linear_x_topic: /dxl_input/linear_x
   move_base_linear_y_topic: /dxl_input/linear_y
+  node_name: vice_controllers
+  publish_markers: true
+  rate: 100
+  right_gripper_topic: /dxl_input/gripper_right
+  right_marker_topic: /dxl_input/marker_right
+  right_position_topic: /dxl_input/pos_right
+  robot: tiago
+  space_scale: 1.0
+  talos_right_gripper_topic: /dxl_input/gripper
+  talos_right_position_topic: /dxl_input/pose
+  use_left_controller: false
+  use_right_controller: true
+  workspace_limit: 0.2
+  z_threshold: 1.8
 htc_vive:
   controller_1:
     name: right_controller
@@ -34,14 +37,14 @@ htc_vive:
     name: head_tracker
     serial: LHR-631A5257
     type: tracker
-kalman_filter:
-  frequency: 50
-  measurement_dim: 6
-  state_dim: 6
+one_euro_filter:
+  beta: 0.1
+  cutoff: 1.0
+  mincutoff: 1.0
 workspace:
-  x_max: -0.11
-  x_min: -1.36
-  y_max: 1.2
-  y_min: -1.01
-  z_max: 0.15
-  z_min: -1.18
+  x_max: -1.02
+  x_min: -2.52
+  y_max: 0.62
+  y_min: -1.0
+  z_max: -0.12
+  z_min: -1.48

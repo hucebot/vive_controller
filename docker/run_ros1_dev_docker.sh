@@ -22,6 +22,8 @@ if [ $isRunning -eq 0 ]; then
         --device /dev/input \
         --device /dev/bus/usb \
         -v `pwd`/../ROS1/:/ros_ws/src/ros1_vive_controller \
+        -v `pwd`/../config/:/ros_ws/src/ros1_vive_controller/config \
+        -v `pwd`/../openvr_class/:/ros_ws/src/ros1_vive_controller/src/openvr_class \
         -v "$HOME/.steam/debian-installation/steamapps/common/SteamVR":"$HOME/.steam/debian-installation/steamapps/common/SteamVR" \
         -v "$HOME/.config/openvr":"/root/.config/openvr" \
         -w /ros_ws \

@@ -3,7 +3,7 @@
 import rospy, math, os, yaml, csv
 import numpy as np
 
-from openvr_class import triad_openvr, time
+from openvr_class.openvr_class import triad_openvr
 from sensor_msgs.msg import PointCloud2, PointField
 import sensor_msgs.point_cloud2 as pc2
 
