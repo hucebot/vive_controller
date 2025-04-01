@@ -39,7 +39,7 @@ https://docs.ros.org/en/humble/index.html)
 The following dependencies are required to use this package:
 - Docker
 - NVIDIA Container Toolkit (if you are using an NVIDIA GPU)
-- SteamVR
+- SteamVR (optional, you can use the joystick + cable)
 - OpenVR
 - **Hardware**:
   - Vive Tracker (optional)
@@ -55,7 +55,7 @@ The easiest way to get started is to use the provided Docker image. You can find
 sh build_ros1.sh
 ```
 
-``bash
+```bash
 sh build_ros2.sh
 ```
 

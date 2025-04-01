@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 from openvr_class.openvr_class import triad_openvr
-import rospy, math, yaml, numpy as np
+import rospy, math, yaml
 from std_msgs.msg import Float32
 from geometry_msgs.msg import PoseStamped, PointStamped
 from visualization_msgs.msg import Marker
-from tf.transformations import quaternion_from_euler, quaternion_multiply, quaternion_inverse, euler_from_quaternion
+from tf.transformations import quaternion_from_euler, quaternion_multiply
 from OneEuroFilter import OneEuroFilter
 
 import tf
@@ -319,18 +319,18 @@ class JoystickNode:
                 filtered_pose_x = fx_filter(out_x, rospy.Time.now().to_sec())
                 filtered_pose_y = fy_filter(out_y, rospy.Time.now().to_sec())
                 filtered_pose_z = fz_filter(out_z, rospy.Time.now().to_sec())
-                filtered_qx = qx_filter(qx, rospy.Time.now().to_sec())
-                filtered_qy = qy_filter(qy, rospy.Time.now().to_sec())
-                filtered_qz = qz_filter(qz, rospy.Time.now().to_sec())
-                filtered_qw = qw_filter(qw, rospy.Time.now().to_sec())
+                # filtered_qx = qx_filter(qx, rospy.Time.now().to_sec())
+                # filtered_qy = qy_filter(qy, rospy.Time.now().to_sec())
+                # filtered_qz = qz_filter(qz, rospy.Time.now().to_sec())
+                # filtered_qw = qw_filter(qw, rospy.Time.now().to_sec())
 
-                self.right_pose_msg.pose.position.x = filtered_pose_x
-                self.right_pose_msg.pose.position.y = filtered_pose_y
-                self.right_pose_msg.pose.position.z = filtered_pose_z
-                self.right_pose_msg.pose.orientation.x = filtered_qx
-                self.right_pose_msg.pose.orientation.y = filtered_qy
-                self.right_pose_msg.pose.orientation.z = filtered_qz
-                self.right_pose_msg.pose.orientation.w = filtered_qw
+                self.right_pose_msg.pose.position.x = filtered_pose_x * self.linear_scale
+                self.right_pose_msg.pose.position.y = filtered_pose_y * self.linear_scale
+                self.right_pose_msg.pose.position.z = filtered_pose_z * self.linear_scale
+                self.right_pose_msg.pose.orientation.x = qx
+                self.right_pose_msg.pose.orientation.y = qy
+                self.right_pose_msg.pose.orientation.z = qz
+                self.right_pose_msg.pose.orientation.w = qw
                 self.right_pose_msg.header.frame_id = "ci/world"
                 self.right_pose_msg.header.stamp = rospy.Time.now()
                 position_publisher.publish(self.right_pose_msg)
@@ -370,18 +370,18 @@ class JoystickNode:
                 filtered_pose_x = fx_filter(out_x, rospy.Time.now().to_sec())
                 filtered_pose_y = fy_filter(out_y, rospy.Time.now().to_sec())
                 filtered_pose_z = fz_filter(out_z, rospy.Time.now().to_sec())
-                filtered_qx = qx_filter(qx, rospy.Time.now().to_sec())
-                filtered_qy = qy_filter(qy, rospy.Time.now().to_sec())
-                filtered_qz = qz_filter(qz, rospy.Time.now().to_sec())
-                filtered_qw = qw_filter(qw, rospy.Time.now().to_sec())
+                # filtered_qx = qx_filter(qx, rospy.Time.now().to_sec())
+                # filtered_qy = qy_filter(qy, rospy.Time.now().to_sec())
+                # filtered_qz = qz_filter(qz, rospy.Time.now().to_sec())
+                # filtered_qw = qw_filter(qw, rospy.Time.now().to_sec())
 
-                self.left_pose_msg.pose.position.x = filtered_pose_x
-                self.left_pose_msg.pose.position.y = filtered_pose_y
-                self.left_pose_msg.pose.position.z = filtered_pose_z
-                self.left_pose_msg.pose.orientation.x = filtered_qx
-                self.left_pose_msg.pose.orientation.y = filtered_qy
-                self.left_pose_msg.pose.orientation.z = filtered_qz
-                self.left_pose_msg.pose.orientation.w = filtered_qw
+                self.left_pose_msg.pose.position.x = filtered_pose_x * self.linear_scale
+                self.left_pose_msg.pose.position.y = filtered_pose_y * self.linear_scale
+                self.left_pose_msg.pose.position.z = filtered_pose_z * self.linear_scale
+                self.left_pose_msg.pose.orientation.x = qx
+                self.left_pose_msg.pose.orientation.y = qy
+                self.left_pose_msg.pose.orientation.z = qz
+                self.left_pose_msg.pose.orientation.w = qw
                 self.left_pose_msg.header.frame_id = "ci/world"
                 self.left_pose_msg.header.stamp = rospy.Time.now()
                 position_publisher.publish(self.left_pose_msg)
