@@ -5,7 +5,7 @@ general:
   left_gripper_topic: /dxl_input/gripper_left
   left_marker_topic: /dxl_input/marker_left
   left_position_topic: /dxl_input/pos_left
-  linear_scale: 1.5
+  linear_scale: 1.0
   move_base: false
   move_base_angular_topic: /dxl_input/angular
   move_base_linear_x_topic: /dxl_input/linear_x
@@ -23,8 +23,12 @@ general:
   use_left_controller: false
   use_right_controller: true
   workspace_limit: 0.05
-  z_threshold: 1.8
+  z_threshold: 3.0
 htc_vive:
+  tracking_reference:
+    name: master
+    serial: LHB-DFA5BD2C
+    type: tracking_reference
   controller_1:
     name: right_controller
     serial: LHR-9ABF6D66
@@ -42,9 +46,9 @@ one_euro_filter:
   cutoff: 1.0
   mincutoff: 1.0
 workspace:
-  x_max: -1.2
-  x_min: -2.27
-  y_max: 0.47
-  y_min: -0.97
-  z_max: -0.56
-  z_min: -1.23
+  x_max: 1.01
+  x_min: -2.94
+  y_max: 2.42
+  y_min: -2.47
+  z_max: 0.48
+  z_min: -1.78

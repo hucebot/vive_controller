@@ -200,7 +200,7 @@ class triad_openvr():
         self.device_index_map = {}
         poses = self.vr.getDeviceToAbsoluteTrackingPose(openvr.TrackingUniverseStanding, 0,
                                                                openvr.k_unMaxTrackedDeviceCount)
-
+ 
         for i in range(openvr.k_unMaxTrackedDeviceCount):
             if poses[i].bDeviceIsConnected:
                 self.add_tracked_device(i)
@@ -229,24 +229,66 @@ class triad_openvr():
                 if event.trackedDeviceIndex in self.device_index_map:
                     self.remove_tracked_device(event.trackedDeviceIndex)
 
+    def wait_for_n_tracking_references(self, n=3, poll_interval=0.1):
+        print(f"Waiting for {n} tracking references...")
+        while len(self.object_names["Tracking Reference"]) < n:
+            print(f"Found {len(self.object_names['Tracking Reference'])} tracking references. Waiting...")
+            self.poll_vr_events()
+            time.sleep(poll_interval)
+
+    def reorder_tracking_references(self, desired_serial):
+        references = self.object_names["Tracking Reference"]
+
+        device_with_desired_serial = None
+        for dev_name in references:
+            if self.devices[dev_name].get_serial() == desired_serial:
+                device_with_desired_serial = dev_name
+                break
+        
+        if device_with_desired_serial:
+            references.remove(device_with_desired_serial)
+            references.insert(0, device_with_desired_serial)
+        else:
+            print(f"No device with serial {desired_serial} found in tracking references.")
+
+    def reindex_tracking_references(self):
+        references = self.object_names["Tracking Reference"]
+
+        temp_names = []
+
+        for i, dev_name in enumerate(references):
+            tmp_name = f"temp_tr_ref_{i+1}"
+            self.rename_device(dev_name, tmp_name)
+            temp_names.append(tmp_name)
+
+        for i, tmp_name in enumerate(temp_names):
+            final_name = f"tracking_reference_{i+1}"
+            self.rename_device(tmp_name, final_name)
+            references[i] = final_name
+
+
     def add_tracked_device(self, tracked_device_index):
         i = tracked_device_index
         device_class = self.vr.getTrackedDeviceClass(i)
+
         if (device_class == openvr.TrackedDeviceClass_Controller):
             device_name = "controller_"+str(len(self.object_names["Controller"])+1)
             self.object_names["Controller"].append(device_name)
             self.devices[device_name] = vr_tracked_device(self.vr,i,"Controller")
             self.device_index_map[i] = device_name
+
         elif (device_class == openvr.TrackedDeviceClass_HMD):
             device_name = "hmd_"+str(len(self.object_names["HMD"])+1)
             self.object_names["HMD"].append(device_name)
             self.devices[device_name] = vr_tracked_device(self.vr,i,"HMD")
             self.device_index_map[i] = device_name
+
         elif (device_class == openvr.TrackedDeviceClass_GenericTracker):
             device_name = "tracker_"+str(len(self.object_names["Tracker"])+1)
             self.object_names["Tracker"].append(device_name)
             self.devices[device_name] = vr_tracked_device(self.vr,i,"Tracker")
             self.device_index_map[i] = device_name
+
         elif (device_class == openvr.TrackedDeviceClass_TrackingReference):
             device_name = "tracking_reference_"+str(len(self.object_names["Tracking Reference"])+1)
             self.object_names["Tracking Reference"].append(device_name)

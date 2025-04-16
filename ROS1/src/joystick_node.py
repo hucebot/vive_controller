@@ -20,7 +20,11 @@ class JoystickNode:
         self.configurations = read_yaml(self.config_file)
         self.robot_type = self.configurations['general']['robot']
         self.v = triad_openvr(self.config_file)
+        self.v.wait_for_n_tracking_references(3)
+        self.v.reorder_tracking_references('LHB-DFA5BD2C')
+        self.v.reindex_tracking_references()
         self.v.print_discovered_objects()
+
         self.controllers = self.v.return_controller_serials()
         self.publish_markers = self.configurations['general']['publish_markers']
         self.use_left_controller = self.configurations['general']['use_left_controller']
