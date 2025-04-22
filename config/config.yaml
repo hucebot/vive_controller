@@ -1,6 +1,7 @@
 general:
   angular_scale: 1.0
   csv_path: /ros_ws/src/ros1_vive_controller/data/
+  reset_position_topic: /streamdeck/reset_initial_state
   frame_id: ci/world
   left_gripper_topic: /dxl_input/gripper_left
   left_marker_topic: /dxl_input/marker_left

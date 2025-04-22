@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from openvr_class.openvr_class import triad_openvr
 import rospy, math, yaml
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, Bool
 from geometry_msgs.msg import PoseStamped, PointStamped
 from visualization_msgs.msg import Marker
 from tf.transformations import quaternion_from_euler, quaternion_multiply
@@ -33,6 +33,8 @@ class JoystickNode:
         self.linear_scale = self.configurations['general']['linear_scale']
         self.angular_scale = self.configurations['general']['angular_scale']
         self.move_base = self.configurations['general']['move_base']
+
+        rospy.Subscriber(self.configurations['general']['reset_position_topic'], Bool, self.reset_initial_state_cb)
 
         self.tf_br = tf.TransformBroadcaster()
 
@@ -161,6 +163,13 @@ class JoystickNode:
 
 
         self.main_loop()
+
+    def reset_initial_state_cb(self, msg):
+        if msg.data:
+            rospy.loginfo('reseting controller state')
+            self.right_cumulative_x = 0.0
+            self.right_cumulative_y = 0.0
+            self.right_cumulative_z = 0.0
 
     def publish_axes_marker(self, frame_id, pose, marker_publisher):
         axis_length = 0.2
