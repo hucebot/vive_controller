@@ -171,6 +171,18 @@ class JoystickNode:
             self.right_cumulative_y = 0.0
             self.right_cumulative_z = 0.0
 
+            self.right_pose_msg.pose.position.x = 0.0
+            self.right_pose_msg.pose.position.y = 0.0
+            self.right_pose_msg.pose.position.z = 0.0
+            self.right_pose_msg.pose.orientation.x = 0.0
+            self.right_pose_msg.pose.orientation.y = 0.0
+            self.right_pose_msg.pose.orientation.z = 0.0
+            self.right_pose_msg.pose.orientation.w = 1.0
+            self.right_pose_msg.header.frame_id = "ci/world"
+            self.right_pose_msg.header.stamp = rospy.Time.now()
+            self.position_publisher_right.publish(self.right_pose_msg)
+
+
     def publish_axes_marker(self, frame_id, pose, marker_publisher):
         axis_length = 0.2
         axis_diameter = 0.015
