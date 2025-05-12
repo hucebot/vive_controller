@@ -21,6 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'vive_tracker = ros2_vive_controller.vive_tracker:main',
+            'calibrate_workspace = ros2_vive_controller.calibrate_workspace:main',
+            'joystick_node = ros2_vive_controller.joystick_node:main',
         ],
     },
 )

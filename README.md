@@ -4,7 +4,7 @@
 https://opensource.org/licenses/BSD-3-Clause)
 [![Ros Version](https://img.shields.io/badge/ROS1-Noetic-green)](
 https://docs.ros.org/en/noetic/index.html)
-[![Ros Version](https://img.shields.io/badge/ROS2-Humble-red)](
+[![Ros Version](https://img.shields.io/badge/ROS2-Humble-yellow)](
 https://docs.ros.org/en/humble/index.html)
 
 | **Control Cartesio - RVIZ**                                | **Control Real Robot**                     | **Workspace**                   |
