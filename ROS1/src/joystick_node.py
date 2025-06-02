@@ -20,7 +20,7 @@ class JoystickNode:
         self.configurations = read_yaml(self.config_file)
         self.robot_type = self.configurations['general']['robot']
         self.v = triad_openvr(self.config_file)
-        self.v.wait_for_n_tracking_references(3)
+        self.v.wait_for_n_tracking_references(1)
         self.v.reorder_tracking_references('LHB-DFA5BD2C')
         self.v.reindex_tracking_references()
         self.v.print_discovered_objects()
@@ -37,6 +37,19 @@ class JoystickNode:
         rospy.Subscriber(self.configurations['general']['reset_position_topic'], Bool, self.reset_initial_state_cb)
 
         self.tf_br = tf.TransformBroadcaster()
+
+        # self.tf_listener = tf.TransformListener()
+        # self.tf_listener.waitForTransform("ci/world",
+        #     "ci/gripper_right_grasping_frame",
+        #     rospy.Time(0),
+        #     rospy.Duration(2.0))
+        
+        # self.initial_right_position = self.tf_listener.lookupTransform("ci/world",
+        #     "ci/gripper_right_grasping_frame",
+        #     rospy.Time(0))
+        # self.initial_right_position = [self.initial_right_position[0][0], self.initial_right_position[0][1], self.initial_right_position[0][2]]
+
+        # rospy.logwarn("Initial position: %s", str(self.initial_right_position))
 
         if self.use_right_controller:
             self.right_serial = self.configurations['htc_vive']['controller_1']['serial']
@@ -68,6 +81,7 @@ class JoystickNode:
             self.right_cumulative_y = 0
             self.right_cumulative_z = 0
             self.right_initial_orientation = None
+
             if self.publish_markers:
                 self.marker_publisher_right = rospy.Publisher(
                     self.configurations['general']['right_marker_topic'],
@@ -123,6 +137,12 @@ class JoystickNode:
                     Float32,
                     queue_size=10
                 )
+
+        self.enable_microphone_publisher = rospy.Publisher(
+            self.configurations['general']['enable_microphone_topic'],
+            Bool,
+            queue_size=10
+        )
 
         self.right_pose_msg = PoseStamped()
         self.left_pose_msg = PoseStamped()
@@ -289,7 +309,7 @@ class JoystickNode:
         menu_button = controller_inputs.get('menu_button', 0)
         gripper_button = controller_inputs.get('grip_button', 0)
 
-        if self.publish_markers:
+        if self.publish_markers or True:
             actual_pose_marker = Marker()
             actual_pose_marker.header.frame_id = "ci/world"
             actual_pose_marker.header.stamp = rospy.Time.now()
@@ -320,7 +340,9 @@ class JoystickNode:
             if self.right_initial_orientation is None:
                 self.right_initial_orientation = [qx, qy, qz, qw]
             if gripper_button:
-                self.right_initial_orientation = [qx, qy, qz, qw]
+                self.enable_microphone_publisher.publish(Bool(True))
+            if not gripper_button:
+                self.enable_microphone_publisher.publish(Bool(False))
             if trigger_value < 0.5:
                 if self.right_trigger_active:
                     self.right_trigger_active = False
@@ -360,7 +382,7 @@ class JoystickNode:
                 self.right_pose_msg.header.stamp = rospy.Time.now()
                 position_publisher.publish(self.right_pose_msg)
                 self.right_gripper_msg.header = self.right_pose_msg.header
-                self.right_gripper_msg.point.x = abs(menu_button)
+                self.right_gripper_msg.point.x = abs(1 - menu_button)
                 self.right_gripper_msg.point.y = 0
                 self.right_gripper_msg.point.z = 0
                 gripper_publisher.publish(self.right_gripper_msg)
@@ -369,9 +391,8 @@ class JoystickNode:
 
         if side == "left" and self.use_left_controller:
             if self.left_initial_orientation is None:
-                self.left_initial_orientation = [qx, qy, qz, qw]
-            if gripper_button:
-                self.left_initial_orientation = [qx, qy, qz, qw]
+                self.left_initial_orientation = [qx, qy, 
+qz, qw]
             if trigger_value < 0.5:
                 if self.left_trigger_active:
                     self.left_trigger_active = False
@@ -412,7 +433,7 @@ class JoystickNode:
                 position_publisher.publish(self.left_pose_msg)
 
                 self.left_gripper_msg.header = self.left_pose_msg.header
-                self.left_gripper_msg.point.x = abs(menu_button)
+                self.left_gripper_msg.point.x = abs(1 - menu_button)
                 self.left_gripper_msg.point.y = 0
                 self.left_gripper_msg.point.z = 0
                 gripper_publisher.publish(self.left_gripper_msg)
