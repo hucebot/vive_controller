@@ -22,7 +22,7 @@ general:
   space_scale: 1.0
   talos_right_gripper_topic: /dxl_input/gripper
   talos_right_position_topic: /dxl_input/pose
-  use_left_controller: true
+  use_left_controller: false
   use_right_controller: true
   workspace_limit: 0.05
   z_threshold: 3.0
@@ -43,14 +43,19 @@ htc_vive:
     name: master
     serial: LHB-DFA5BD2C
     type: tracking_reference
+offset:
+  tiago:
+    x: 0.2
+    y: -0.3
+    z: 0.6
 one_euro_filter:
   beta: 0.1
   cutoff: 1.0
   mincutoff: 1.0
 workspace:
-  x_max: -0.18
-  x_min: -1.84
-  y_max: 0.93
-  y_min: -1.56
-  z_max: 1.06
-  z_min: -0.79
+  x_max: -0.37
+  x_min: -1.32
+  y_max: 0.83
+  y_min: -1.04
+  z_max: 0.16
+  z_min: -0.92
