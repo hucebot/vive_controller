@@ -182,13 +182,13 @@ class JoystickNode:
     def reset_initial_state_cb(self, msg):
         if msg.data:
             rospy.loginfo('reseting controller state')
-            self.right_cumulative_x = 0.0
+            self.right_cumulative_x = 0.0 
             self.right_cumulative_y = 0.0
             self.right_cumulative_z = 0.0
 
-            self.right_pose_msg.pose.position.x = 0.0
-            self.right_pose_msg.pose.position.y = 0.0
-            self.right_pose_msg.pose.position.z = 0.0
+            self.right_pose_msg.pose.position.x = 0.0 + self.initial_offset['x']
+            self.right_pose_msg.pose.position.y = 0.0 + self.initial_offset['y']
+            self.right_pose_msg.pose.position.z = 0.0 + self.initial_offset['z']
             self.right_pose_msg.pose.orientation.x = 0.0
             self.right_pose_msg.pose.orientation.y = 0.0
             self.right_pose_msg.pose.orientation.z = 0.0
