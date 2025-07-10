@@ -45,9 +45,9 @@ htc_vive:
     type: tracking_reference
 offset:
   tiago:
-    x: 0.15
-    y: -0.3
-    z: 0.6
+    x: 0.06
+    y: -0.35
+    z: 0.53
 one_euro_filter:
   beta: 0.1
   cutoff: 1.0
