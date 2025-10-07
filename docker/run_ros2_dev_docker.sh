@@ -26,8 +26,8 @@ if [ $isRunning -eq 0 ]; then
         -v `pwd`/../ROS2/:/ros2_ws/src/ros2_vive_controller \
         -v `pwd`/../config/:/ros2_ws/src/ros2_vive_controller/config \
         -v `pwd`/../openvr_class/:/ros2_ws/src/ros2_vive_controller/ros2_vive_controller/openvr_class \
-        -v "$HOME/.steam/debian-installation/steamapps/common/SteamVR":"$HOME/.steam/debian-installation/steamapps/common/SteamVR" \
-        -v "$HOME/.config/openvr":"/root/.config/openvr" \
+        -v "$HOME/.steam/debian-installation/steamapps/common/SteamVR":/root/.steam/debian-installation/steamapps/common/SteamVR \
+        -v `pwd`/../steamvr_config/openvrpaths.vrpath:/root/.config/openvr/openvrpaths.vrpath \
         -w /ros2_ws \
         ros2_vive_controller:latest
 

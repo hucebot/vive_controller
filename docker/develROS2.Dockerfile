@@ -70,6 +70,11 @@ RUN apt install -y \
 RUN python3 -m pip install --upgrade pip
 RUN pip install openvr
 RUN pip install scipy
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  libpipewire-0.3-0 libpipewire-0.3-modules libspa-0.2-modules pipewire \
+  dbus-x11 \
+  libxkbcommon0 libxrandr2 libxinerama1 libxcursor1 libxi6 \
+  libnss3 libatk1.0-0 libgtk-3-0
 
 ###### Update Buffer
 RUN sysctl net.ipv4.ipfrag_time=3
