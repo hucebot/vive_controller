@@ -17,7 +17,7 @@ general:
   reset_position_topic: /streamdeck/reset_initial_state
   right_gripper_topic: /dxl_input/gripper_right
   right_marker_topic: /dxl_input/marker_right
-  right_position_topic: /right_hand_goal
+  right_position_topic: /dxl_input/pos_right
   robot: g1
   space_scale: 1.0
   talos_right_gripper_topic: /dxl_input/gripper
@@ -44,22 +44,22 @@ htc_vive:
     serial: LHB-DFA5BD2C
     type: tracking_reference
 offset:
+  g1:
+    x: 0.2
+    y: -0.07
+    z: 0.1
   tiago:
     x: 0.06
     y: -0.35
     z: 0.53
-  g1:
-    x: 0.20
-    y: -0.07
-    z: 0.10
 one_euro_filter:
   beta: 0.1
   cutoff: 1.0
   mincutoff: 1.0
 workspace:
-  x_max: -3.52
-  x_min: -4.41
-  y_max: 1.4
-  y_min: 0.25
-  z_max: -0.02
-  z_min: -1.03
+  x_max: -0.55
+  x_min: -2.31
+  y_max: 1.14
+  y_min: -0.83
+  z_max: 0.49
+  z_min: -1.28
