@@ -56,7 +56,7 @@ sh build_ros1.sh
 ```
 
 ```bash
-sh build_ros2.sh
+sh build_ros2.sh --steam_user=USERNAME --steam_password=PASSWORD
 ```
 
 To run the development container, use the following command:

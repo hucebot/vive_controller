@@ -1,17 +1,17 @@
 {
 	"config" : 
 	[
-		"/home/steam/.steam/debian-installation/config"
+		"/home/steam/Steam/config"
 	],
 	"external_drivers" : null,
 	"jsonid" : "vrpathreg",
 	"log" : 
 	[
-		"/home/steam/.steam/debian-installation/logs"
+		"/home/steam/Steam/logs"
 	],
 	"runtime" : 
 	[
-		"/home/steam/.steam/debian-installation/steamapps/common/SteamVR"
+		"/home/steam/Steam/steamapps/common/SteamVR"
 	],
 	"version" : 1
 }

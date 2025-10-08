@@ -4,6 +4,9 @@ ENV ROS_DISTRO=humble
 ENV DISPLAY=:0
 ENV LIBGL_ALWAYS_INDIRECT=0
 
+ARG STEAM_USER
+ARG STEAM_PASSWORD
+
 SHELL ["/bin/bash", "-c"]
 
 ENV DEBIAN_FRONTEND="noninteractive"
@@ -63,8 +66,7 @@ RUN rosdep init && rosdep update
 ###### Install ROS Dependencies
 RUN apt install -y \
     ros-${ROS_DISTRO}-cv-bridge \
-    ros-${ROS_DISTRO}-rviz2 \
-    ros-${ROS_DISTRO}-rviz-imu-plugin
+    ros-${ROS_DISTRO}-rviz2
 
 ###### Upgrade pip & Install python packages
 RUN python3 -m pip install --upgrade pip
@@ -81,6 +83,30 @@ RUN sysctl net.ipv4.ipfrag_time=3
 RUN sysctl net.ipv4.ipfrag_high_thresh=134217728
 
 RUN echo "export FASTDDS_BUILTIN_TRANSPORTS=LARGE_DATA?max_msg_size=1MB&soets_size=1MB&non_blocking=true&tcp_negotiation_timeout=50" >> ~/.bashrc
+
+###### Install streamcmd
+RUN echo "steam steam/question select I AGREE" | debconf-set-selections
+RUN echo "steam steam/license note ''" | debconf-set-selections
+
+RUN apt-get update && \
+    apt-get install -y software-properties-common
+
+RUN add-apt-repository -y multiverse
+RUN dpkg --add-architecture i386
+
+RUN apt-get update && \
+    apt-get install -y steamcmd lib32gcc-s1 && \
+    ln -sf /usr/games/steamcmd /usr/bin/steamcmd
+
+
+RUN useradd -m -s /bin/bash steam || true
+RUN mkdir -p /home/steam/.steam /home/steam/.local/share/Steam /home/steam/Steam
+RUN chown -R steam:steam /home/steam
+
+###### Install SteamVR
+USER steam
+RUN steamcmd +login ${STEAM_USER} ${STEAM_PASSWORD} +app_update 250820 validate +quit || true
+USER root
 
 ###### Source ROS2
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
