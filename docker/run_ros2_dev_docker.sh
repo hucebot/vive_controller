@@ -25,11 +25,12 @@ if [ $isRunning -eq 0 ]; then
         --device /dev/bus/usb \
         -v `pwd`/../ROS2/:/ros2_ws/src/ros2_vive_controller \
         -v `pwd`/../config/:/ros2_ws/src/ros2_vive_controller/config \
-        -v `pwd`/../openvr_class/:/ros2_ws/src/ros2_vive_controller/src/openvr_class \
-        -v "$HOME/.steam/debian-installation/steamapps/common/SteamVR":"$HOME/.steam/debian-installation/steamapps/common/SteamVR" \
-        -v "$HOME/.config/openvr":"/root/.config/openvr" \
+        -v `pwd`/../openvr_class/:/ros2_ws/src/ros2_vive_controller/ros2_vive_controller/openvr_class \
+        -v `pwd`/../steamvr_config/openvrpaths.vrpath:/root/.config/openvr/openvrpaths.vrpath \
+        -v `pwd`/../steamvr_config/default_driver_null:/home/steam/Steam/steamapps/common/SteamVR/drivers/null/resources/settings/default.vrsettings \
+        -v `pwd`/../steamvr_config/default_resources:/home/steam/Steam/steamapps/common/SteamVR/resources/settings/default.vrsettings \
         -w /ros2_ws \
-        ros2_vive_controller:latest
+        ros2_vive_controller:steam
 
 else
     echo "Docker already running."

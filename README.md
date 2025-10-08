@@ -56,7 +56,7 @@ sh build_ros1.sh
 ```
 
 ```bash
-sh build_ros2.sh
+sh build_ros2.sh --steam_user=USERNAME --steam_password=PASSWORD
 ```
 
 To run the development container, use the following command:
@@ -94,9 +94,12 @@ Basically you need to edit the following files:
 - **default.vrsettings** located in **Steam Directory**/steamapps/common/SteamVR/resources/settings/default.vrsettings
   - On the steamvr section replace: **"requireHmd": true** to **"requireHmd": false**
   - On the steamvr section replace: **"forcedDriver": ""** to **"forcedDriver": "null"**
-  - On the steamvr section replace: **"activateMultipleDrivers": true** to **"activateMultipleDrivers": false**
+  - On the steamvr section replace: **"activateMultipleDrivers": false** to **"activateMultipleDrivers": true**
 
-On the `steamvr_config` folder there are 3 examples of this files.
+We prepare command that already do this. Move to the folder `Docker` and the run the following command:
+```bash
+sh replace.sh path-where-steam-is-installed #For example: sh replace.sh ~/.steam/debian-installation
+```
 
 ### Connect Devices
 Once SteamVR is installed, open it and go to the settings. In the settings, go the paired devices and pair your Vive Tracker and Vive Joystick. Once the devices are paired, you will see a small window with the devices and their status. Make sure that all devices are connected. Finally, you can close SteamVR.

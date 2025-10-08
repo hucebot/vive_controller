@@ -18,12 +18,14 @@ class JoystickNode:
         rospy.init_node('joystick_node', anonymous=True)
         self.config_file = "/ros_ws/src/ros1_vive_controller/config/config.yaml"
         self.configurations = read_yaml(self.config_file)
-        self.robot_type = self.configurations['general']['robot']
+        self.robot_name = self.configurations['general']['robot']
         self.v = triad_openvr(self.config_file)
-        self.v.wait_for_n_tracking_references(3)
+        self.v.wait_for_n_tracking_references(1)
         self.v.reorder_tracking_references('LHB-DFA5BD2C')
         self.v.reindex_tracking_references()
         self.v.print_discovered_objects()
+
+        self.prev_right_mic_state = False
 
         self.controllers = self.v.return_controller_serials()
         self.publish_markers = self.configurations['general']['publish_markers']
@@ -38,6 +40,13 @@ class JoystickNode:
 
         self.tf_br = tf.TransformBroadcaster()
 
+        self.initial_offset = {
+            'x': self.configurations['offset'][self.robot_name]['x'],
+            'y': self.configurations['offset'][self.robot_name]['y'],
+            'z': self.configurations['offset'][self.robot_name]['z']
+        }
+
+
         if self.use_right_controller:
             self.right_serial = self.configurations['htc_vive']['controller_1']['serial']
             self.position_publisher_right = rospy.Publisher(
@@ -50,7 +59,7 @@ class JoystickNode:
                 PointStamped,
                 queue_size=10
             )
-            if self.robot_type == 'talos':
+            if self.robot_name == 'talos':
                 self.position_publisher_right = rospy.Publisher(
                     self.configurations['general']['talos_position_topic'],
                     PoseStamped,
@@ -68,6 +77,7 @@ class JoystickNode:
             self.right_cumulative_y = 0
             self.right_cumulative_z = 0
             self.right_initial_orientation = None
+
             if self.publish_markers:
                 self.marker_publisher_right = rospy.Publisher(
                     self.configurations['general']['right_marker_topic'],
@@ -124,6 +134,12 @@ class JoystickNode:
                     queue_size=10
                 )
 
+        self.enable_microphone_publisher = rospy.Publisher(
+            self.configurations['general']['enable_microphone_topic'],
+            Bool,
+            queue_size=10
+        )
+
         self.right_pose_msg = PoseStamped()
         self.left_pose_msg = PoseStamped()
         self.right_gripper_msg = PointStamped()
@@ -137,7 +153,6 @@ class JoystickNode:
         self.z_min = self.configurations['workspace']['z_min']
         if self.publish_markers:
             self.workspace_marker_pub = rospy.Publisher("workspace_bbox_marker", Marker, queue_size=10)
-            self.actual_pose_marker_pub = rospy.Publisher("actual_pose_marker", Marker, queue_size=10)
 
         cfg = {
             'freq': self.configurations['general']['rate'],
@@ -167,13 +182,13 @@ class JoystickNode:
     def reset_initial_state_cb(self, msg):
         if msg.data:
             rospy.loginfo('reseting controller state')
-            self.right_cumulative_x = 0.0
+            self.right_cumulative_x = 0.0 
             self.right_cumulative_y = 0.0
             self.right_cumulative_z = 0.0
 
-            self.right_pose_msg.pose.position.x = 0.0
-            self.right_pose_msg.pose.position.y = 0.0
-            self.right_pose_msg.pose.position.z = 0.0
+            self.right_pose_msg.pose.position.x = 0.0 + self.initial_offset['x']
+            self.right_pose_msg.pose.position.y = 0.0 + self.initial_offset['y']
+            self.right_pose_msg.pose.position.z = 0.0 + self.initial_offset['z']
             self.right_pose_msg.pose.orientation.x = 0.0
             self.right_pose_msg.pose.orientation.y = 0.0
             self.right_pose_msg.pose.orientation.z = 0.0
@@ -289,38 +304,13 @@ class JoystickNode:
         menu_button = controller_inputs.get('menu_button', 0)
         gripper_button = controller_inputs.get('grip_button', 0)
 
-        if self.publish_markers:
-            actual_pose_marker = Marker()
-            actual_pose_marker.header.frame_id = "ci/world"
-            actual_pose_marker.header.stamp = rospy.Time.now()
-            actual_pose_marker.ns = "actual_pose"
-            actual_pose_marker.id = 0
-            actual_pose_marker.type = Marker.SPHERE
-            actual_pose_marker.action = Marker.ADD
-            actual_pose_marker.scale.x = 0.05
-            actual_pose_marker.scale.y = 0.05
-            actual_pose_marker.scale.z = 0.05
-            actual_pose_marker.pose.position.x = px
-            actual_pose_marker.pose.position.y = py
-            actual_pose_marker.pose.position.z = pz
-
-            actual_pose_marker.pose.orientation.x = qx
-            actual_pose_marker.pose.orientation.y = qy
-            actual_pose_marker.pose.orientation.z = qz
-            actual_pose_marker.pose.orientation.w = qw
-            actual_pose_marker.color.r = 1.0
-            actual_pose_marker.color.g = 0.0
-            actual_pose_marker.color.b = 0.0
-            actual_pose_marker.color.a = 1.0
-            self.publish_axes_marker("ci/world", actual_pose_marker.pose, self.actual_pose_marker_pub)
-
-            self.tf_br.sendTransform((px, py, pz), (qx, qy, qz, qw), rospy.Time.now(), "vive_raw", "ci/world")
-
         if side == "right" and self.use_right_controller:
             if self.right_initial_orientation is None:
                 self.right_initial_orientation = [qx, qy, qz, qw]
-            if gripper_button:
-                self.right_initial_orientation = [qx, qy, qz, qw]
+            current_mic_state = gripper_button
+            if current_mic_state != self.prev_right_mic_state:
+                self.enable_microphone_publisher.publish(Bool(current_mic_state))
+                self.prev_right_mic_state = current_mic_state
             if trigger_value < 0.5:
                 if self.right_trigger_active:
                     self.right_trigger_active = False
@@ -349,9 +339,9 @@ class JoystickNode:
                 # filtered_qz = qz_filter(qz, rospy.Time.now().to_sec())
                 # filtered_qw = qw_filter(qw, rospy.Time.now().to_sec())
 
-                self.right_pose_msg.pose.position.x = filtered_pose_x * self.linear_scale
-                self.right_pose_msg.pose.position.y = filtered_pose_y * self.linear_scale
-                self.right_pose_msg.pose.position.z = filtered_pose_z * self.linear_scale
+                self.right_pose_msg.pose.position.x = filtered_pose_x * self.linear_scale + self.initial_offset['x']
+                self.right_pose_msg.pose.position.y = filtered_pose_y * self.linear_scale + self.initial_offset['y']
+                self.right_pose_msg.pose.position.z = filtered_pose_z * self.linear_scale + self.initial_offset['z']
                 self.right_pose_msg.pose.orientation.x = qx
                 self.right_pose_msg.pose.orientation.y = qy
                 self.right_pose_msg.pose.orientation.z = qz
@@ -360,7 +350,7 @@ class JoystickNode:
                 self.right_pose_msg.header.stamp = rospy.Time.now()
                 position_publisher.publish(self.right_pose_msg)
                 self.right_gripper_msg.header = self.right_pose_msg.header
-                self.right_gripper_msg.point.x = abs(menu_button)
+                self.right_gripper_msg.point.x = abs(1 - menu_button)
                 self.right_gripper_msg.point.y = 0
                 self.right_gripper_msg.point.z = 0
                 gripper_publisher.publish(self.right_gripper_msg)
@@ -369,9 +359,8 @@ class JoystickNode:
 
         if side == "left" and self.use_left_controller:
             if self.left_initial_orientation is None:
-                self.left_initial_orientation = [qx, qy, qz, qw]
-            if gripper_button:
-                self.left_initial_orientation = [qx, qy, qz, qw]
+                self.left_initial_orientation = [qx, qy, 
+qz, qw]
             if trigger_value < 0.5:
                 if self.left_trigger_active:
                     self.left_trigger_active = False
@@ -400,9 +389,9 @@ class JoystickNode:
                 # filtered_qz = qz_filter(qz, rospy.Time.now().to_sec())
                 # filtered_qw = qw_filter(qw, rospy.Time.now().to_sec())
 
-                self.left_pose_msg.pose.position.x = filtered_pose_x * self.linear_scale
-                self.left_pose_msg.pose.position.y = filtered_pose_y * self.linear_scale
-                self.left_pose_msg.pose.position.z = filtered_pose_z * self.linear_scale
+                self.left_pose_msg.pose.position.x = filtered_pose_x * self.linear_scale + self.initial_offset['x']
+                self.left_pose_msg.pose.position.y = filtered_pose_y * self.linear_scale + self.initial_offset['y']
+                self.left_pose_msg.pose.position.z = filtered_pose_z * self.linear_scale + self.initial_offset['z']
                 self.left_pose_msg.pose.orientation.x = qx
                 self.left_pose_msg.pose.orientation.y = qy
                 self.left_pose_msg.pose.orientation.z = qz
@@ -412,7 +401,7 @@ class JoystickNode:
                 position_publisher.publish(self.left_pose_msg)
 
                 self.left_gripper_msg.header = self.left_pose_msg.header
-                self.left_gripper_msg.point.x = abs(menu_button)
+                self.left_gripper_msg.point.x = abs(1 - menu_button)
                 self.left_gripper_msg.point.y = 0
                 self.left_gripper_msg.point.z = 0
                 gripper_publisher.publish(self.left_gripper_msg)

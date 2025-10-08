@@ -1,316 +1,465 @@
-import rclpy
-from rclpy.node import Node
+#!/usr/bin/env python3
 import math
 import yaml
-from pathlib import Path
+import rclpy
+from rclpy.node import Node
 from std_msgs.msg import Float32, Bool
-from geometry_msgs.msg import PoseStamped, PointStamped, TransformStamped
+from geometry_msgs.msg import PoseStamped, PointStamped
 from visualization_msgs.msg import Marker
-from tf2_ros import TransformBroadcaster
-from tf_transformations import quaternion_from_euler, quaternion_multiply
-from openvr_class.openvr_class import triad_openvr
+from transformations import quaternion_from_euler, quaternion_multiply
+
 from OneEuroFilter import OneEuroFilter
 
+from ros2_vive_controller.openvr_class.openvr_class import triad_openvr
 
 def read_yaml(path):
     with open(path, 'r') as stream:
         return yaml.safe_load(stream)
 
-
 class JoystickNode(Node):
     def __init__(self):
         super().__init__('joystick_node')
-        config_file = Path(__file__).parent.parent / 'config' / 'config.yaml'
-        configs = read_yaml(str(config_file))
-
-        self.robot_type = configs['general']['robot']
-        self.v = triad_openvr(str(config_file))
-        self.v.wait_for_n_tracking_references(3)
+        self.config_file = "/ros2_ws/src/ros2_vive_controller/config/config.yaml"
+        self.configurations = read_yaml(self.config_file)
+        self.robot_name = self.configurations['general']['robot']
+        self.v = triad_openvr(self.config_file)
+        self.v.wait_for_n_tracking_references(1)
         self.v.reorder_tracking_references('LHB-DFA5BD2C')
         self.v.reindex_tracking_references()
         self.v.print_discovered_objects()
 
+        self.prev_right_mic_state = False
         self.controllers = self.v.return_controller_serials()
-        self.publish_markers = configs['general']['publish_markers']
-        self.use_left = configs['general']['use_left_controller']
-        self.use_right = configs['general']['use_right_controller']
-        rate_hz = configs['general']['rate']
-        self.linear_scale = configs['general']['linear_scale']
-        self.angular_scale = configs['general']['angular_scale']
-        self.move_base = configs['general']['move_base']
+        self.publish_markers = self.configurations['general']['publish_markers']
+        self.use_left_controller = self.configurations['general']['use_left_controller']
+        self.use_right_controller = self.configurations['general']['use_right_controller']
+        self.linear_scale = self.configurations['general']['linear_scale']
+        self.angular_scale = self.configurations['general']['angular_scale']
+        self.move_base = self.configurations['general']['move_base']
 
-        self.reset_sub = self.create_subscription(
+        self.initial_offset = {
+            'x': self.configurations['offset'][self.robot_name]['x'],
+            'y': self.configurations['offset'][self.robot_name]['y'],
+            'z': self.configurations['offset'][self.robot_name]['z']
+        }
+
+        # Suscribers y Publishers ROS2
+        self.reset_position_sub = self.create_subscription(
             Bool,
-            configs['general']['reset_position_topic'],
-            self.reset_callback,
+            self.configurations['general']['reset_position_topic'],
+            self.reset_initial_state_cb,
             10
         )
 
-        self.tf_broadcaster = TransformBroadcaster(self)
+        # Publishers generales
+        self.enable_microphone_publisher = self.create_publisher(
+            Bool,
+            self.configurations['general']['enable_microphone_topic'],
+            10
+        )
 
-        if self.use_right:
-            rs = configs['htc_vive']['controller_1']['serial']
-            self.right_name = self.controllers[rs]
-            if self.robot_type == 'talos':
-                pos_topic = configs['general']['talos_position_topic']
-                grip_topic = configs['general']['talos_gripper_topic']
-            else:
-                pos_topic = configs['general']['right_position_topic']
-                grip_topic = configs['general']['right_gripper_topic']
-            self.pub_pos_right = self.create_publisher(PoseStamped, pos_topic, 10)
-            self.pub_grip_right = self.create_publisher(PointStamped, grip_topic, 10)
+        # Right controller
+        if self.use_right_controller:
+            self.right_serial = self.configurations['htc_vive']['controller_1']['serial']
+            self.position_publisher_right = self.create_publisher(
+                PoseStamped,
+                self.configurations['general']['right_position_topic'],
+                10
+            )
+            self.gripper_publisher_right = self.create_publisher(
+                PointStamped,
+                self.configurations['general']['right_gripper_topic'],
+                10
+            )
+            if self.robot_name == 'talos':
+                self.position_publisher_right = self.create_publisher(
+                    PoseStamped,
+                    self.configurations['general']['talos_position_topic'],
+                    10
+                )
+                self.gripper_publisher_right = self.create_publisher(
+                    PointStamped,
+                    self.configurations['general']['talos_gripper_topic'],
+                    10
+                )
+            self.controller_name_right = self.controllers[self.right_serial]
+            self.right_trigger_active = False
+            self.right_reference_position = None
+            self.right_cumulative_x = 0
+            self.right_cumulative_y = 0
+            self.right_cumulative_z = 0
+            self.right_initial_orientation = None
+
             if self.publish_markers:
-                self.marker_pub_right = self.create_publisher(Marker, configs['general']['right_marker_topic'], 10)
-                self.aux_marker_pub_right = self.create_publisher(Marker, '/auxiliar_marker_right', 10)
+                self.marker_publisher_right = self.create_publisher(
+                    Marker,
+                    self.configurations['general']['right_marker_topic'],
+                    10
+                )
+                self.auxiliar_marker_publisher_right = self.create_publisher(
+                    Marker,
+                    '/auxiliar_marker_right',
+                    10
+                )
             if self.move_base:
-                self.pub_mb_ang = self.create_publisher(Float32, configs['general']['move_base_angular_topic'], 10)
+                self.move_base_angular_publisher = self.create_publisher(
+                    Float32,
+                    self.configurations['general']['move_base_angular_topic'],
+                    10
+                )
 
-            self.right_trigger = False
-            self.right_ref = None
-            self.right_cum = [0.0, 0.0, 0.0]
-            self.right_init_ori = None
-
-        if self.use_left:
-            ls = configs['htc_vive']['controller_2']['serial']
-            self.left_name = self.controllers[ls]
-            self.pub_pos_left = self.create_publisher(PoseStamped, configs['general']['left_position_topic'], 10)
-            self.pub_grip_left = self.create_publisher(PointStamped, configs['general']['left_gripper_topic'], 10)
+        # Left controller
+        if self.use_left_controller:
+            self.left_serial = self.configurations['htc_vive']['controller_2']['serial']
+            self.position_publisher_left = self.create_publisher(
+                PoseStamped,
+                self.configurations['general']['left_position_topic'],
+                10
+            )
+            self.gripper_publisher_left = self.create_publisher(
+                PointStamped,
+                self.configurations['general']['left_gripper_topic'],
+                10
+            )
+            self.controller_name_left = self.controllers[self.left_serial]
+            self.left_trigger_active = False
+            self.left_reference_position = None
+            self.left_cumulative_x = 0
+            self.left_cumulative_y = 0
+            self.left_cumulative_z = 0
+            self.left_initial_orientation = None
             if self.publish_markers:
-                self.marker_pub_left = self.create_publisher(Marker, configs['general']['left_marker_topic'], 10)
+                self.marker_publisher_left = self.create_publisher(
+                    Marker,
+                    self.configurations['general']['left_marker_topic'],
+                    10
+                )
             if self.move_base:
-                self.pub_mb_lin_x = self.create_publisher(Float32, configs['general']['move_base_linear_x_topic'], 10)
-                self.pub_mb_lin_y = self.create_publisher(Float32, configs['general']['move_base_linear_y_topic'], 10)
+                self.move_base_linear_x_publisher = self.create_publisher(
+                    Float32,
+                    self.configurations['general']['move_base_linear_x_topic'],
+                    10
+                )
+                self.move_base_linear_y_publisher = self.create_publisher(
+                    Float32,
+                    self.configurations['general']['move_base_linear_y_topic'],
+                    10
+                )
 
-            self.left_trigger = False
-            self.left_ref = None
-            self.left_cum = [0.0, 0.0, 0.0]
-            self.left_init_ori = None
+        # Mensajes iniciales
+        self.right_pose_msg = PoseStamped()
+        self.left_pose_msg = PoseStamped()
+        self.right_gripper_msg = PointStamped()
+        self.left_gripper_msg = PointStamped()
+        self.workspace_limit = self.configurations['general']['workspace_limit']
+        self.x_max = self.configurations['workspace']['x_max']
+        self.x_min = self.configurations['workspace']['x_min']
+        self.y_max = self.configurations['workspace']['y_max']
+        self.y_min = self.configurations['workspace']['y_min']
+        self.z_max = self.configurations['workspace']['z_max']
+        self.z_min = self.configurations['workspace']['z_min']
 
-        self.right_filter = self._make_filters(configs)
-        self.left_filter = self._make_filters(configs)
-
-        self.workspace_limit = configs['general']['workspace_limit']
-        ws = configs['workspace']
-        self.x_max, self.x_min = ws['x_max'], ws['x_min']
-        self.y_max, self.y_min = ws['y_max'], ws['y_min']
-        self.z_max, self.z_min = ws['z_max'], ws['z_min']
         if self.publish_markers:
-            self.pub_ws = self.create_publisher(Marker, 'workspace_bbox_marker', 10)
-            self.pub_act = self.create_publisher(Marker, 'actual_pose_marker', 10)
+            self.workspace_marker_pub = self.create_publisher(Marker, "workspace_bbox_marker", 10)
 
-        timer_period = 1.0 / rate_hz
-        self.timer = self.create_timer(timer_period, self.timer_callback)
-
-    def _make_filters(self, configs):
+        # Filtros OneEuro
         cfg = {
-            'freq': configs['general']['rate'],
+            'freq': self.configurations['general']['rate'],
             'mincutoff': 1.0,
             'beta': 0.1,
             'dcutoff': 1.0
         }
-        return {
-            'x': OneEuroFilter(**cfg), 'y': OneEuroFilter(**cfg), 'z': OneEuroFilter(**cfg),
-            'qx': OneEuroFilter(**cfg), 'qy': OneEuroFilter(**cfg),
-            'qz': OneEuroFilter(**cfg), 'qw': OneEuroFilter(**cfg)
-        }
+        self.right_filter_x = OneEuroFilter(**cfg)
+        self.right_filter_y = OneEuroFilter(**cfg)
+        self.right_filter_z = OneEuroFilter(**cfg)
+        self.right_filter_qx = OneEuroFilter(**cfg)
+        self.right_filter_qy = OneEuroFilter(**cfg)
+        self.right_filter_qz = OneEuroFilter(**cfg)
+        self.right_filter_qw = OneEuroFilter(**cfg)
 
-    def reset_callback(self, msg: Bool):
+        self.left_filter_x = OneEuroFilter(**cfg)
+        self.left_filter_y = OneEuroFilter(**cfg)
+        self.left_filter_z = OneEuroFilter(**cfg)
+        self.left_filter_qx = OneEuroFilter(**cfg)
+        self.left_filter_qy = OneEuroFilter(**cfg)
+        self.left_filter_qz = OneEuroFilter(**cfg)
+        self.left_filter_qw = OneEuroFilter(**cfg)
+
+        timer_period = 1.0 / float(self.configurations['general']['rate'])
+        self.create_timer(timer_period, self.main_loop)
+
+    def reset_initial_state_cb(self, msg):
         if msg.data:
-            self.get_logger().info('resetting controller state')
-            self.right_cum = [0.0, 0.0, 0.0]
-            ps = PoseStamped()
-            ps.header.frame_id = 'ci/world'
-            ps.header.stamp = self.get_clock().now().to_msg()
-            ps.pose.orientation.w = 1.0
-            self.pub_pos_right.publish(ps)
+            self.get_logger().info('Reseting controller state')
+            self.right_cumulative_x = 0.0 
+            self.right_cumulative_y = 0.0
+            self.right_cumulative_z = 0.0
 
-    def publish_axes(self, frame_id, pose, pub):
-        length, diam = 0.2, 0.015
-        offs_id = quaternion_from_euler(0,0,0)
-        offs_y = quaternion_from_euler(0,0,math.pi/2)
-        offs_z = quaternion_from_euler(0,-math.pi/2,0)
-        for idx, (col, off) in enumerate([((1,0,0), offs_id), ((0,1,0), offs_y), ((0,0,1), offs_z)]):
+            self.right_pose_msg.pose.position.x = 0.0 + self.initial_offset['x']
+            self.right_pose_msg.pose.position.y = 0.0 + self.initial_offset['y']
+            self.right_pose_msg.pose.position.z = 0.0 + self.initial_offset['z']
+            self.right_pose_msg.pose.orientation.x = 0.0
+            self.right_pose_msg.pose.orientation.y = 0.0
+            self.right_pose_msg.pose.orientation.z = 0.0
+            self.right_pose_msg.pose.orientation.w = 1.0
+            self.right_pose_msg.header.frame_id = "pelvis"
+            self.right_pose_msg.header.stamp = self.get_clock().now().to_msg()
+            self.position_publisher_right.publish(self.right_pose_msg)
+
+    def publish_axes_marker(self, frame_id, pose, marker_publisher):
+        axis_length = 0.2
+        axis_diameter = 0.015
+
+        def make_arrow_marker(id, color, orientation_offset):
             m = Marker()
             m.header.frame_id = frame_id
             m.header.stamp = self.get_clock().now().to_msg()
-            m.ns = 'joystick_axes'
-            m.id = idx
+            m.ns = "joystick_axes"
+            m.id = id
             m.type = Marker.ARROW
-            m.scale.x = length
-            m.scale.y = diam
-            m.scale.z = diam
+            m.action = Marker.ADD
+            m.scale.x = axis_length
+            m.scale.y = axis_diameter
+            m.scale.z = axis_diameter
             m.color.a = 1.0
-            m.color.r, m.color.g, m.color.b = col
-            m.pose = pose
-            qf = quaternion_multiply([
-                pose.orientation.x, pose.orientation.y,
-                pose.orientation.z, pose.orientation.w
-            ], off)
-            m.pose.orientation.x, m.pose.orientation.y, m.pose.orientation.z, m.pose.orientation.w = qf
-            pub.publish(m)
-        if hasattr(self, 'aux_marker_pub_right'):
-            a = Marker()
-            a.header.frame_id = frame_id
-            a.header.stamp = self.get_clock().now().to_msg()
-            a.ns = 'auxiliar'
-            a.id = 0
-            a.type = Marker.ARROW
-            a.scale.x, a.scale.y, a.scale.z = 0.1, 0.02, 0.02
-            a.color.a = 1.0
-            a.color.r = a.color.g = a.color.b = 1.0
-            a.pose = pose
-            self.aux_marker_pub_right.publish(a)
+            m.color.r = color[0]
+            m.color.g = color[1]
+            m.color.b = color[2]
+            m.pose.position.x = pose.position.x
+            m.pose.position.y = pose.position.y
+            m.pose.position.z = pose.position.z
+            q_pose = [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
+            q_final = quaternion_multiply(q_pose, orientation_offset)
+            m.pose.orientation.x = q_final[0]
+            m.pose.orientation.y = q_final[1]
+            m.pose.orientation.z = q_final[2]
+            m.pose.orientation.w = q_final[3]
+            return m
 
-    def publish_workspace(self):
-        m = Marker()
-        m.header.frame_id = 'ci/world'
-        m.header.stamp = self.get_clock().now().to_msg()
-        m.ns = 'workspace'
-        m.id = 1000
-        m.type = Marker.CUBE
-        m.scale.x = self.x_max - self.x_min
-        m.scale.y = self.y_max - self.y_min
-        m.scale.z = self.z_max - self.z_min
-        m.pose.position.x = (self.x_max + self.x_min) / 2.0
-        m.pose.position.y = (self.y_max + self.y_min) / 2.0
-        m.pose.position.z = (self.z_max + self.z_min) / 2.0
-        m.pose.orientation.w = 1.0
-        m.color.g = 1.0
-        m.color.a = 0.1
-        self.pub_ws.publish(m)
+        q_id = quaternion_from_euler(0, 0, 0)
+        q_y = quaternion_from_euler(0, 0, math.pi/2)
+        q_z = quaternion_from_euler(0, -math.pi/2, 0)
+        marker_x = make_arrow_marker(0, (1.0, 0.0, 0.0), q_id)
+        marker_y = make_arrow_marker(1, (0.0, 1.0, 0.0), q_y)
+        marker_z = make_arrow_marker(2, (0.0, 0.0, 1.0), q_z)
+        marker_publisher.publish(marker_x)
+        marker_publisher.publish(marker_y)
+        marker_publisher.publish(marker_z)
 
-    def parse_device(self, dev, side, pos_pub, grip_pub, marker_pub, filt):
-        pq = dev.get_pose_quaternion()
-        ci = dev.get_controller_inputs()
-        if not pq or ci is None:
+        if hasattr(self, "auxiliar_marker_publisher_right"):
+            arrow_maker = Marker()
+            arrow_maker.header.frame_id = frame_id
+            arrow_maker.header.stamp = self.get_clock().now().to_msg()
+            arrow_maker.ns = "auxiliar"
+            arrow_maker.id = 0
+            arrow_maker.type = Marker.ARROW
+            arrow_maker.action = Marker.ADD
+            arrow_maker.scale.x = 0.1
+            arrow_maker.scale.y = 0.02
+            arrow_maker.scale.z = 0.02
+            arrow_maker.color.a = 1.0
+            arrow_maker.color.r = 1.0
+            arrow_maker.color.g = 1.0
+            arrow_maker.color.b = 1.0
+            arrow_maker.pose.position.x = pose.position.x
+            arrow_maker.pose.position.y = pose.position.y
+            arrow_maker.pose.position.z = pose.position.z
+            arrow_maker.pose.orientation.x = pose.orientation.x
+            arrow_maker.pose.orientation.y = pose.orientation.y
+            arrow_maker.pose.orientation.z = pose.orientation.z
+            arrow_maker.pose.orientation.w = pose.orientation.w
+            self.auxiliar_marker_publisher_right.publish(arrow_maker)
+
+    def publish_workspace_bbox_marker(self):
+        marker = Marker()
+        marker.header.frame_id = "pelvis"
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = "workspace"
+        marker.id = 1000
+        marker.type = Marker.CUBE
+        marker.action = Marker.ADD
+        marker.scale.x = self.x_max - self.x_min
+        marker.scale.y = self.y_max - self.y_min
+        marker.scale.z = self.z_max - self.z_min
+        marker.pose.position.x = (self.x_max + self.x_min) / 2.0
+        marker.pose.position.y = (self.y_max + self.y_min) / 2.0
+        marker.pose.position.z = (self.z_max + self.z_min) / 2.0
+        marker.pose.orientation.w = 1.0
+        marker.color.r = 0.0
+        marker.color.g = 1.0
+        marker.color.b = 0.0
+        marker.color.a = 0.1
+        self.workspace_marker_pub.publish(marker)
+
+    def parse_data_device(self, device, side, position_publisher, gripper_publisher, marker_publisher,
+                     fx_filter, fy_filter, fz_filter, qx_filter, qy_filter, qz_filter, qw_filter):
+        quaternion_pose = device.get_pose_quaternion()
+        controller_inputs = device.get_controller_inputs()
+
+        if quaternion_pose is None or controller_inputs is None:
+            self.get_logger().warn("No data received from device. Move the controller to receive data.")
             return
-        px, py, pz, qx, qy, qz, qw = *pq[:3], *pq[3:7]
+
+        px, py, pz = quaternion_pose[0:3]
+        qx, qy, qz, qw = quaternion_pose[3:7]
+
         if (px < self.x_min + self.workspace_limit or px > self.x_max - self.workspace_limit or
             py < self.y_min + self.workspace_limit or py > self.y_max - self.workspace_limit or
             pz < self.z_min + self.workspace_limit or pz > self.z_max - self.workspace_limit):
-            dev.trigger_haptic_pulse(1000, 0)
+            device.trigger_haptic_pulse(1000, 0)
             return
-        trig = ci.get('trigger', 0)
-        grip_btn = ci.get('grip_button', 0)
-        menu_btn = ci.get('menu_button', 0)
-        if self.publish_markers:
-            ap = Marker()
-            ap.header.frame_id = 'ci/world'
-            ap.header.stamp = self.get_clock().now().to_msg()
-            ap.ns = 'actual_pose'
-            ap.id = 0
-            ap.type = Marker.SPHERE
-            ap.scale.x = ap.scale.y = ap.scale.z = 0.05
-            ap.pose.position.x, ap.pose.position.y, ap.pose.position.z = px, py, pz
-            ap.pose.orientation.x,ap.pose.orientation.y,ap.pose.orientation.z,ap.pose.orientation.w = qx,qy,qz,qw
-            ap.color.r = 1.0
-            ap.color.a = 1.0
-            self.publish_axes('ci/world', ap.pose, self.pub_act)
-            t = TransformStamped()
-            t.header.stamp = self.get_clock().now().to_msg()
-            t.header.frame_id = 'ci/world'
-            t.child_frame_id = 'vive_raw'
-            t.transform.translation.x, t.transform.translation.y, t.transform.translation.z = px, py, pz
-            t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w = qx, qy, qz, qw
-            self.tf_broadcaster.sendTransform(t)
-        if side == 'right' and self.use_right:
-            if self.right_init_ori is None:
-                self.right_init_ori = [qx,qy,qz,qw]
-            if grip_btn:
-                self.right_init_ori = [qx,qy,qz,qw]
-            if trig < 0.5:
-                if self.right_trigger:
-                    self.right_trigger = False
-                    self.right_cum[0] += px - self.right_ref[0]
-                    self.right_cum[1] += py - self.right_ref[1]
-                    self.right_cum[2] += pz - self.right_ref[2]
+
+        trigger_value = controller_inputs.get('trigger', 0)
+        trackpad_pressed = controller_inputs.get('trackpad_pressed', 0)
+        trackpad_touched = controller_inputs.get('trackpad_touched', 0)
+        menu_button = controller_inputs.get('menu_button', 0)
+        gripper_button = controller_inputs.get('grip_button', 0)
+
+        if side == "right" and self.use_right_controller:
+            if self.right_initial_orientation is None:
+                self.right_initial_orientation = [qx, qy, qz, qw]
+            current_mic_state = gripper_button
+            if current_mic_state != self.prev_right_mic_state:
+                self.enable_microphone_publisher.publish(Bool(data=bool(current_mic_state)))
+                self.prev_right_mic_state = current_mic_state
+            if trigger_value < 0.5:
+                if self.right_trigger_active:
+                    self.right_trigger_active = False
+                    self.right_cumulative_x += px - self.right_reference_position[0]
+                    self.right_cumulative_y += py - self.right_reference_position[1]
+                    self.right_cumulative_z += pz - self.right_reference_position[2]
             else:
-                if not self.right_trigger:
-                    self.right_trigger = True
-                    self.right_ref = [px,py,pz]
-                if ci.get('trackpad_pressed') and ci.get('trackpad_touched') and self.move_base:
-                    ang = ci.get('trackpad_x',0) * self.angular_scale
-                    self.pub_mb_ang.publish(Float32(data=ang))
-                dx = px - self.right_ref[0]
-                out = [self.right_cum[i] + d for i,d in enumerate((dx, py-self.right_ref[1], pz-self.right_ref[2]))]
-                fx = filt['x'](out[0], self.get_clock().now().nanoseconds*1e-9)
-                fy = filt['y'](out[1], self.get_clock().now().nanoseconds*1e-9)
-                fz = filt['z'](out[2], self.get_clock().now().nanoseconds*1e-9)
-                ps = PoseStamped()
-                ps.header.frame_id = 'ci/world'
-                ps.header.stamp = self.get_clock().now().to_msg()
-                ps.pose.position.x = fx * self.linear_scale
-                ps.pose.position.y = fy * self.linear_scale
-                ps.pose.position.z = fz * self.linear_scale
-                ps.pose.orientation.x,ps.pose.orientation.y,ps.pose.orientation.z,ps.pose.orientation.w = qx,qy,qz,qw
-                pos_pub.publish(ps)
-                gr = PointStamped()
-                gr.header = ps.header
-                gr.point.x = abs(menu_btn)
-                grip_pub.publish(gr)
-                if self.publish_markers:
-                    self.publish_axes('ci/world', ps.pose, marker_pub)
-        if side == 'left' and self.use_left:
-            if self.left_init_ori is None:
-                self.left_init_ori = [qx,qy,qz,qw]
-            if grip_btn:
-                self.left_init_ori = [qx,qy,qz,qw]
-            if trig < 0.5:
-                if self.left_trigger:
-                    self.left_trigger = False
-                    self.left_cum[0] += px - self.left_ref[0]
-                    self.left_cum[1] += py - self.left_ref[1]
-                    self.left_cum[2] += pz - self.left_ref[2]
-            else:
-                if not self.left_trigger:
-                    self.left_trigger = True
-                    self.left_ref = [px,py,pz]
-                if ci.get('trackpad_pressed') and ci.get('trackpad_touched') and self.move_base:
-                    linx = ci.get('trackpad_y',0) * self.linear_scale
-                    self.pub_mb_lin_x.publish(Float32(data=linx))
-                out = [self.left_cum[i] + (val - self.left_ref[i]) for i,val in enumerate((px,py,pz))]
-                fx = filt['x'](out[0], self.get_clock().now().nanoseconds*1e-9)
-                fy = filt['y'](out[1], self.get_clock().now().nanoseconds*1e-9)
-                fz = filt['z'](out[2], self.get_clock().now().nanoseconds*1e-9)
-                ps = PoseStamped()
-                ps.header.frame_id = 'ci/world'
-                ps.header.stamp = self.get_clock().now().to_msg()
-                ps.pose.position.x = fx * self.linear_scale
-                ps.pose.position.y = fy * self.linear_scale
-                ps.pose.position.z = fz * self.linear_scale
-                ps.pose.orientation.x,ps.pose.orientation.y,ps.pose.orientation.z,ps.pose.orientation.w = qx,qy,qz,qw
-                pos_pub.publish(ps)
-                gr = PointStamped()
-                gr.header = ps.header
-                gr.point.x = abs(menu_btn)
-                grip_pub.publish(gr)
-                if self.publish_markers:
-                    self.publish_axes('ci/world', ps.pose, marker_pub)
+                if not self.right_trigger_active:
+                    self.right_trigger_active = True
+                    self.right_reference_position = [px, py, pz]
+                if trackpad_touched and trackpad_pressed and self.move_base:
+                    trackpad_x = controller_inputs.get('trackpad_x', 0)
+                    vel_ang = trackpad_x * self.angular_scale
+                    self.move_base_angular_publisher.publish(Float32(data=vel_ang))
+                dx = px - self.right_reference_position[0]
+                dy = py - self.right_reference_position[1]
+                dz = pz - self.right_reference_position[2]
+                out_x = self.right_cumulative_x + dx
+                out_y = self.right_cumulative_y + dy
+                out_z = self.right_cumulative_z + dz
+                now_sec = self.get_clock().now().seconds_nanoseconds()[0] + \
+                        self.get_clock().now().seconds_nanoseconds()[1] * 1e-9
+                filtered_pose_x = fx_filter(out_x, now_sec)
+                filtered_pose_y = fy_filter(out_y, now_sec)
+                filtered_pose_z = fz_filter(out_z, now_sec)
 
-    def timer_callback(self):
-        if self.use_right:
-            self.parse_device(
-                self.v.devices[self.right_name], 'right',
-                self.pub_pos_right, self.pub_grip_right,
-                getattr(self, 'marker_pub_right', None), self.right_filter
+                self.right_pose_msg.pose.position.x = filtered_pose_x * self.linear_scale + self.initial_offset['x']
+                self.right_pose_msg.pose.position.y = filtered_pose_y * self.linear_scale + self.initial_offset['y']
+                self.right_pose_msg.pose.position.z = filtered_pose_z * self.linear_scale + self.initial_offset['z']
+                self.right_pose_msg.pose.orientation.x = qx
+                self.right_pose_msg.pose.orientation.y = qy
+                self.right_pose_msg.pose.orientation.z = qz
+                self.right_pose_msg.pose.orientation.w = qw
+                self.right_pose_msg.header.frame_id = "pelvis"
+                self.right_pose_msg.header.stamp = self.get_clock().now().to_msg()
+                position_publisher.publish(self.right_pose_msg)
+
+                self.right_gripper_msg.header = self.right_pose_msg.header
+                self.right_gripper_msg.point.x = float(abs(1 - menu_button))
+                self.right_gripper_msg.point.y = 0.0
+                self.right_gripper_msg.point.z = 0.0
+                gripper_publisher.publish(self.right_gripper_msg)
+                if self.publish_markers:
+                    self.publish_axes_marker("pelvis", self.right_pose_msg.pose, marker_publisher)
+
+        if side == "left" and self.use_left_controller:
+            if self.left_initial_orientation is None:
+                self.left_initial_orientation = [qx, qy, qz, qw]
+            if trigger_value < 0.5:
+                if self.left_trigger_active:
+                    self.left_trigger_active = False
+                    self.left_cumulative_x += px - self.left_reference_position[0]
+                    self.left_cumulative_y += py - self.left_reference_position[1]
+                    self.left_cumulative_z += pz - self.left_reference_position[2]
+            else:
+                if not self.left_trigger_active:
+                    self.left_trigger_active = True
+                    self.left_reference_position = [px, py, pz]
+                if trackpad_touched and trackpad_pressed and self.move_base:
+                    trackpad_y = controller_inputs.get('trackpad_y', 0)
+                    vel_x = trackpad_y * self.linear_scale
+                    self.move_base_linear_x_publisher.publish(Float32(data=vel_x))
+                dx = px - self.left_reference_position[0]
+                dy = py - self.left_reference_position[1]
+                dz = pz - self.left_reference_position[2]
+                out_x = self.left_cumulative_x + dx
+                out_y = self.left_cumulative_y + dy
+                out_z = self.left_cumulative_z + dz
+                now_sec = self.get_clock().now().seconds_nanoseconds()[0] + \
+                        self.get_clock().now().seconds_nanoseconds()[1] * 1e-9
+                filtered_pose_x = fx_filter(out_x, now_sec)
+                filtered_pose_y = fy_filter(out_y, now_sec)
+                filtered_pose_z = fz_filter(out_z, now_sec)
+
+                self.left_pose_msg.pose.position.x = filtered_pose_x * self.linear_scale + self.initial_offset['x']
+                self.left_pose_msg.pose.position.y = filtered_pose_y * self.linear_scale + self.initial_offset['y']
+                self.left_pose_msg.pose.position.z = filtered_pose_z * self.linear_scale + self.initial_offset['z']
+                self.left_pose_msg.pose.orientation.x = qx
+                self.left_pose_msg.pose.orientation.y = qy
+                self.left_pose_msg.pose.orientation.z = qz
+                self.left_pose_msg.pose.orientation.w = qw
+                self.left_pose_msg.header.frame_id = "pelvis"
+                self.left_pose_msg.header.stamp = self.get_clock().now().to_msg()
+                position_publisher.publish(self.left_pose_msg)
+
+                self.left_gripper_msg.header = self.left_pose_msg.header
+                self.left_gripper_msg.point.x = abs(1 - menu_button)
+                self.left_gripper_msg.point.y = 0
+                self.left_gripper_msg.point.z = 0
+                gripper_publisher.publish(self.left_gripper_msg)
+                if self.publish_markers:
+                    self.publish_axes_marker("pelvis", self.left_pose_msg.pose, marker_publisher)
+
+
+    def main_loop(self):
+        if self.use_right_controller:
+            self.parse_data_device(
+                self.v.devices[self.controller_name_right],
+                "right",
+                self.position_publisher_right,
+                self.gripper_publisher_right,
+                self.marker_publisher_right,
+                self.right_filter_x,
+                self.right_filter_y,
+                self.right_filter_z,
+                self.right_filter_qx,
+                self.right_filter_qy,
+                self.right_filter_qz,
+                self.right_filter_qw
             )
-        if self.use_left:
-            self.parse_device(
-                self.v.devices[self.left_name], 'left',
-                self.pub_pos_left, self.pub_grip_left,
-                getattr(self, 'marker_pub_left', None), self.left_filter
+        if self.use_left_controller:
+            self.parse_data_device(
+                self.v.devices[self.controller_name_left],
+                "left",
+                self.position_publisher_left,
+                self.gripper_publisher_left,
+                self.marker_publisher_left,
+                self.left_filter_x,
+                self.left_filter_y,
+                self.left_filter_z,
+                self.left_filter_qx,
+                self.left_filter_qy,
+                self.left_filter_qz,
+                self.left_filter_qw
             )
         if self.publish_markers:
-            self.publish_workspace()
+            self.publish_workspace_bbox_marker()
 
-
-def main():
-    rclpy.init()
+def main(args=None):
+    rclpy.init(args=args)
     node = JoystickNode()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
-
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

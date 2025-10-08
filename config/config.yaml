@@ -1,7 +1,7 @@
 general:
   angular_scale: 1.0
   csv_path: /ros_ws/src/ros1_vive_controller/data/
-  reset_position_topic: /streamdeck/reset_initial_state
+  enable_microphone_topic: /vive/speak
   frame_id: ci/world
   left_gripper_topic: /dxl_input/gripper_left
   left_marker_topic: /dxl_input/marker_left
@@ -13,11 +13,12 @@ general:
   move_base_linear_y_topic: /dxl_input/linear_y
   node_name: vice_controllers
   publish_markers: true
-  rate: 50
+  rate: 20
+  reset_position_topic: /streamdeck/reset_initial_state
   right_gripper_topic: /dxl_input/gripper_right
   right_marker_topic: /dxl_input/marker_right
   right_position_topic: /dxl_input/pos_right
-  robot: tiago
+  robot: g1
   space_scale: 1.0
   talos_right_gripper_topic: /dxl_input/gripper
   talos_right_position_topic: /dxl_input/pose
@@ -26,10 +27,6 @@ general:
   workspace_limit: 0.05
   z_threshold: 3.0
 htc_vive:
-  tracking_reference:
-    name: master
-    serial: LHB-DFA5BD2C
-    type: tracking_reference
   controller_1:
     name: right_controller
     serial: LHR-9ABF6D66
@@ -42,14 +39,27 @@ htc_vive:
     name: head_tracker
     serial: LHR-631A5257
     type: tracker
+  tracking_reference:
+    name: master
+    serial: LHB-DFA5BD2C
+    type: tracking_reference
+offset:
+  g1:
+    x: 0.2
+    y: -0.07
+    z: 0.1
+  tiago:
+    x: 0.06
+    y: -0.35
+    z: 0.53
 one_euro_filter:
   beta: 0.1
   cutoff: 1.0
   mincutoff: 1.0
 workspace:
-  x_max: 1.01
-  x_min: -2.94
-  y_max: 2.42
-  y_min: -2.47
-  z_max: 0.48
-  z_min: -1.78
+  x_max: -0.55
+  x_min: -2.31
+  y_max: 1.14
+  y_min: -0.83
+  z_max: 0.49
+  z_min: -1.28
