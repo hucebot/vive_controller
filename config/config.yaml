@@ -52,6 +52,10 @@ offset:
     x: 0.06
     y: -0.35
     z: 0.53
+  franka:
+    x: 0.00
+    y: 0.00
+    z: 0.00
 one_euro_filter:
   beta: 0.1
   cutoff: 1.0
