@@ -108,5 +108,11 @@ USER steam
 RUN steamcmd +login ${STEAM_USER} ${STEAM_PASSWORD} +app_update 250820 validate +quit || true
 USER root
 
+RUN pip install OneEuroFilter --upgrade
+RUN pip install transformations
+RUN apt-get install terminator -y
+
+RUN echo "export ROS_DOMAIN_ID=39" >> ~/.bashrc
+
 ###### Source ROS2
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc

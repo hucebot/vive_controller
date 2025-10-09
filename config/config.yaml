@@ -6,7 +6,7 @@ general:
   left_gripper_topic: /dxl_input/gripper_left
   left_marker_topic: /dxl_input/marker_left
   left_position_topic: /dxl_input/pos_left
-  linear_scale: 1.0
+  linear_scale: 2.0
   move_base: false
   move_base_angular_topic: /dxl_input/angular
   move_base_linear_x_topic: /dxl_input/linear_x
@@ -15,10 +15,10 @@ general:
   publish_markers: true
   rate: 20
   reset_position_topic: /streamdeck/reset_initial_state
-  right_gripper_topic: /dxl_input/gripper_right
+  right_gripper_topic: /panda_gripper/gripper_command
   right_marker_topic: /dxl_input/marker_right
-  right_position_topic: /dxl_input/pos_right
-  robot: g1
+  right_position_topic: /cartesian_impedance/equilibrium_pose
+  robot: franka
   space_scale: 1.0
   talos_right_gripper_topic: /dxl_input/gripper
   talos_right_position_topic: /dxl_input/pose
@@ -31,10 +31,6 @@ htc_vive:
     name: right_controller
     serial: LHR-9ABF6D66
     type: controller
-  controller_2:
-    name: left_controller
-    serial: LHR-21C1BC92
-    type: controller
   tracker_1:
     name: head_tracker
     serial: LHR-631A5257
@@ -44,6 +40,10 @@ htc_vive:
     serial: LHB-DFA5BD2C
     type: tracking_reference
 offset:
+  franka:
+    x: 0.35
+    y: -0.05
+    z: 0.50
   g1:
     x: 0.2
     y: -0.07
@@ -52,18 +52,14 @@ offset:
     x: 0.06
     y: -0.35
     z: 0.53
-  franka:
-    x: 0.00
-    y: 0.00
-    z: 0.00
 one_euro_filter:
   beta: 0.1
   cutoff: 1.0
   mincutoff: 1.0
 workspace:
-  x_max: -0.55
-  x_min: -2.31
-  y_max: 1.14
-  y_min: -0.83
-  z_max: 0.49
-  z_min: -1.28
+  x_max: -0.76
+  x_min: -2.1
+  y_max: 0.39
+  y_min: -0.63
+  z_max: 0.28
+  z_min: -0.43

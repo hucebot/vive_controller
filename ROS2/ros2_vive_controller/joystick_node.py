@@ -3,7 +3,7 @@ import math
 import yaml
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float32, Bool
+from std_msgs.msg import Float32, Bool, Float64
 from geometry_msgs.msg import PoseStamped, PointStamped
 from visualization_msgs.msg import Marker
 from transformations import quaternion_from_euler, quaternion_multiply
@@ -23,7 +23,7 @@ class JoystickNode(Node):
         self.configurations = read_yaml(self.config_file)
         self.robot_name = self.configurations['general']['robot']
         self.v = triad_openvr(self.config_file)
-        self.v.wait_for_n_tracking_references(1)
+        self.v.wait_for_n_tracking_references(3)
         self.v.reorder_tracking_references('LHB-DFA5BD2C')
         self.v.reindex_tracking_references()
         self.v.print_discovered_objects()
@@ -67,7 +67,7 @@ class JoystickNode(Node):
                 10
             )
             self.gripper_publisher_right = self.create_publisher(
-                PointStamped,
+                Float64,
                 self.configurations['general']['right_gripper_topic'],
                 10
             )
@@ -202,11 +202,14 @@ class JoystickNode(Node):
             self.right_pose_msg.pose.orientation.y = 0.0
             self.right_pose_msg.pose.orientation.z = 0.0
             self.right_pose_msg.pose.orientation.w = 1.0
-            self.right_pose_msg.header.frame_id = "pelvis"
+            self.right_pose_msg.header.frame_id = "panda_link0"
             self.right_pose_msg.header.stamp = self.get_clock().now().to_msg()
             self.position_publisher_right.publish(self.right_pose_msg)
 
     def publish_axes_marker(self, frame_id, pose, marker_publisher):
+        import math
+        from visualization_msgs.msg import Marker
+
         axis_length = 0.2
         axis_diameter = 0.015
 
@@ -228,24 +231,32 @@ class JoystickNode(Node):
             m.pose.position.x = pose.position.x
             m.pose.position.y = pose.position.y
             m.pose.position.z = pose.position.z
+
             q_pose = [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
             q_final = quaternion_multiply(q_pose, orientation_offset)
+
             m.pose.orientation.x = q_final[0]
             m.pose.orientation.y = q_final[1]
             m.pose.orientation.z = q_final[2]
             m.pose.orientation.w = q_final[3]
             return m
 
-        q_id = quaternion_from_euler(0, 0, 0)
-        q_y = quaternion_from_euler(0, 0, math.pi/2)
-        q_z = quaternion_from_euler(0, -math.pi/2, 0)
-        marker_x = make_arrow_marker(0, (1.0, 0.0, 0.0), q_id)
+        # Each arrow points along +X by default.
+        # Rotate Y arrow +90° about Z
+        # Rotate Z arrow -90° about Y
+        q_x = quaternion_from_euler(0, 0, 0)
+        q_y = quaternion_from_euler(0, 0, math.pi / 2)
+        q_z = quaternion_from_euler(0, -math.pi / 2, 0)
+
+        marker_x = make_arrow_marker(0, (1.0, 0.0, 0.0), q_x)
         marker_y = make_arrow_marker(1, (0.0, 1.0, 0.0), q_y)
         marker_z = make_arrow_marker(2, (0.0, 0.0, 1.0), q_z)
+
         marker_publisher.publish(marker_x)
         marker_publisher.publish(marker_y)
         marker_publisher.publish(marker_z)
 
+        # Optional auxiliary arrow
         if hasattr(self, "auxiliar_marker_publisher_right"):
             arrow_maker = Marker()
             arrow_maker.header.frame_id = frame_id
@@ -261,18 +272,12 @@ class JoystickNode(Node):
             arrow_maker.color.r = 1.0
             arrow_maker.color.g = 1.0
             arrow_maker.color.b = 1.0
-            arrow_maker.pose.position.x = pose.position.x
-            arrow_maker.pose.position.y = pose.position.y
-            arrow_maker.pose.position.z = pose.position.z
-            arrow_maker.pose.orientation.x = pose.orientation.x
-            arrow_maker.pose.orientation.y = pose.orientation.y
-            arrow_maker.pose.orientation.z = pose.orientation.z
-            arrow_maker.pose.orientation.w = pose.orientation.w
+            arrow_maker.pose = pose
             self.auxiliar_marker_publisher_right.publish(arrow_maker)
 
     def publish_workspace_bbox_marker(self):
         marker = Marker()
-        marker.header.frame_id = "pelvis"
+        marker.header.frame_id = "panda_link0"
         marker.header.stamp = self.get_clock().now().to_msg()
         marker.ns = "workspace"
         marker.id = 1000
@@ -355,17 +360,15 @@ class JoystickNode(Node):
                 self.right_pose_msg.pose.orientation.y = qy
                 self.right_pose_msg.pose.orientation.z = qz
                 self.right_pose_msg.pose.orientation.w = qw
-                self.right_pose_msg.header.frame_id = "pelvis"
+                self.right_pose_msg.header.frame_id = "panda_link0"
                 self.right_pose_msg.header.stamp = self.get_clock().now().to_msg()
                 position_publisher.publish(self.right_pose_msg)
 
-                self.right_gripper_msg.header = self.right_pose_msg.header
-                self.right_gripper_msg.point.x = float(abs(1 - menu_button))
-                self.right_gripper_msg.point.y = 0.0
-                self.right_gripper_msg.point.z = 0.0
-                gripper_publisher.publish(self.right_gripper_msg)
+                msg = Float64()
+                msg.data = float(abs(menu_button)) #OPEN MUST BE 0
+                gripper_publisher.publish(msg)
                 if self.publish_markers:
-                    self.publish_axes_marker("pelvis", self.right_pose_msg.pose, marker_publisher)
+                    self.publish_axes_marker("panda_link0", self.right_pose_msg.pose, marker_publisher)
 
         if side == "left" and self.use_left_controller:
             if self.left_initial_orientation is None:
@@ -403,7 +406,7 @@ class JoystickNode(Node):
                 self.left_pose_msg.pose.orientation.y = qy
                 self.left_pose_msg.pose.orientation.z = qz
                 self.left_pose_msg.pose.orientation.w = qw
-                self.left_pose_msg.header.frame_id = "pelvis"
+                self.left_pose_msg.header.frame_id = "panda_link0"
                 self.left_pose_msg.header.stamp = self.get_clock().now().to_msg()
                 position_publisher.publish(self.left_pose_msg)
 
@@ -413,7 +416,7 @@ class JoystickNode(Node):
                 self.left_gripper_msg.point.z = 0
                 gripper_publisher.publish(self.left_gripper_msg)
                 if self.publish_markers:
-                    self.publish_axes_marker("pelvis", self.left_pose_msg.pose, marker_publisher)
+                    self.publish_axes_marker("panda_link0", self.left_pose_msg.pose, marker_publisher)
 
 
     def main_loop(self):
