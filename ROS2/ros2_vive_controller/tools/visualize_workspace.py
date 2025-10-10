@@ -107,7 +107,7 @@ def plot_convex_hull(points, outliers=None):
             label='Outliers'
         )
 
-    ax.scatter(points[:,0], points[:,1], points[:,2], color='blue', alpha=0.5, label='Filtrados')
+    ax.scatter(points[:,0], points[:,1], points[:,2], color='blue', alpha=0.5, label='Filtered')
 
     for simplex in hull.simplices:
         xs = points[simplex, 0]
