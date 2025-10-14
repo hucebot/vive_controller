@@ -8,6 +8,8 @@ from geometry_msgs.msg import PoseStamped, PointStamped
 from visualization_msgs.msg import Marker
 from transformations import quaternion_from_euler, quaternion_multiply
 
+from franka_custom_msgs.msg import GripperWidth
+
 from OneEuroFilter import OneEuroFilter
 
 from ros2_vive_controller.openvr_class.openvr_class import triad_openvr
@@ -36,6 +38,7 @@ class JoystickNode(Node):
         self.linear_scale = self.configurations['general']['linear_scale']
         self.angular_scale = self.configurations['general']['angular_scale']
         self.move_base = self.configurations['general']['move_base']
+        self.link_name = self.configurations['general']['link_name']
 
         self.initial_offset = {
             'x': self.configurations['offset'][self.robot_name]['x'],
@@ -67,7 +70,7 @@ class JoystickNode(Node):
                 10
             )
             self.gripper_publisher_right = self.create_publisher(
-                Float64,
+                GripperWidth,
                 self.configurations['general']['right_gripper_topic'],
                 10
             )
@@ -82,6 +85,17 @@ class JoystickNode(Node):
                     self.configurations['general']['talos_gripper_topic'],
                     10
                 )
+            if self.robot_name == 'franka':
+                self.position_publisher_right = self.create_publisher(
+                PoseStamped,
+                self.configurations['general']['franka_position_topic'],
+                10
+            )
+            self.gripper_publisher_right = self.create_publisher(
+                GripperWidth,
+                self.configurations['general']['franka_gripper_topic'],
+                10
+            )
             self.controller_name_right = self.controllers[self.right_serial]
             self.right_trigger_active = False
             self.right_reference_position = None
@@ -202,7 +216,7 @@ class JoystickNode(Node):
             self.right_pose_msg.pose.orientation.y = 0.0
             self.right_pose_msg.pose.orientation.z = 0.0
             self.right_pose_msg.pose.orientation.w = 1.0
-            self.right_pose_msg.header.frame_id = "panda_link0"
+            self.right_pose_msg.header.frame_id = self.link_name
             self.right_pose_msg.header.stamp = self.get_clock().now().to_msg()
             self.position_publisher_right.publish(self.right_pose_msg)
 
@@ -277,7 +291,7 @@ class JoystickNode(Node):
 
     def publish_workspace_bbox_marker(self):
         marker = Marker()
-        marker.header.frame_id = "panda_link0"
+        marker.header.frame_id = self.link_name
         marker.header.stamp = self.get_clock().now().to_msg()
         marker.ns = "workspace"
         marker.id = 1000
@@ -360,15 +374,24 @@ class JoystickNode(Node):
                 self.right_pose_msg.pose.orientation.y = qy
                 self.right_pose_msg.pose.orientation.z = qz
                 self.right_pose_msg.pose.orientation.w = qw
-                self.right_pose_msg.header.frame_id = "panda_link0"
+                self.right_pose_msg.header.frame_id = self.link_name
                 self.right_pose_msg.header.stamp = self.get_clock().now().to_msg()
                 position_publisher.publish(self.right_pose_msg)
 
-                msg = Float64()
-                msg.data = float(abs(menu_button)) #OPEN MUST BE 0
+                if self.robot_name == 'franka':
+                    msg = GripperWidth()
+                    msg.header = self.right_pose_msg.header
+                    msg.width = float(abs(menu_button))
+                
+                else:
+                    msg = PointStamped()
+                    msg.header = self.right_pose_msg.header
+                    msg.point.x = abs(1 - menu_button)
+                    msg.point.y = 0
+                    msg.point.z = 0
                 gripper_publisher.publish(msg)
                 if self.publish_markers:
-                    self.publish_axes_marker("panda_link0", self.right_pose_msg.pose, marker_publisher)
+                    self.publish_axes_marker(self.link_name, self.right_pose_msg.pose, marker_publisher)
 
         if side == "left" and self.use_left_controller:
             if self.left_initial_orientation is None:
@@ -406,7 +429,7 @@ class JoystickNode(Node):
                 self.left_pose_msg.pose.orientation.y = qy
                 self.left_pose_msg.pose.orientation.z = qz
                 self.left_pose_msg.pose.orientation.w = qw
-                self.left_pose_msg.header.frame_id = "panda_link0"
+                self.left_pose_msg.header.frame_id = self.link_name
                 self.left_pose_msg.header.stamp = self.get_clock().now().to_msg()
                 position_publisher.publish(self.left_pose_msg)
 
@@ -416,7 +439,7 @@ class JoystickNode(Node):
                 self.left_gripper_msg.point.z = 0
                 gripper_publisher.publish(self.left_gripper_msg)
                 if self.publish_markers:
-                    self.publish_axes_marker("panda_link0", self.left_pose_msg.pose, marker_publisher)
+                    self.publish_axes_marker(self.link_name, self.left_pose_msg.pose, marker_publisher)
 
 
     def main_loop(self):

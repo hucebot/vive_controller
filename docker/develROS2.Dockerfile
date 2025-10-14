@@ -104,6 +104,7 @@ RUN mkdir -p /home/steam/.steam /home/steam/.local/share/Steam /home/steam/Steam
 RUN chown -R steam:steam /home/steam
 
 ###### Install SteamVR
+RUN apt-get update
 USER steam
 RUN steamcmd +login ${STEAM_USER} ${STEAM_PASSWORD} +app_update 250820 validate +quit || true
 USER root
@@ -113,6 +114,13 @@ RUN pip install transformations
 RUN apt-get install terminator -y
 
 RUN echo "export ROS_DOMAIN_ID=39" >> ~/.bashrc
+
+WORKDIR /ros2_ws/src
+RUN git clone https://github.com/hucebot/franka_custom_msgs
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
 
 ###### Source ROS2
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
