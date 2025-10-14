@@ -13,7 +13,7 @@ general:
   move_base_linear_y_topic: /dxl_input/linear_y
   node_name: vice_controllers
   publish_markers: true
-  rate: 20
+  rate: 90
   reset_position_topic: /streamdeck/reset_initial_state
   right_gripper_topic: /panda_gripper/gripper_command
   right_marker_topic: /dxl_input/marker_right
