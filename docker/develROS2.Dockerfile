@@ -119,7 +119,7 @@ WORKDIR /ros2_ws/src
 RUN git clone https://github.com/hucebot/franka_custom_msgs
 
 RUN apt install -y ros-humble-rosidl-default-generators
-COPY entrypoint.sh /entrypoint.sh
+COPY entrypoint_ros2.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
 
