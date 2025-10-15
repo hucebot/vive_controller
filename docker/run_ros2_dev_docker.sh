@@ -13,6 +13,7 @@ if [ $isRunning -eq 0 ]; then
         -e DISPLAY=$DISPLAY \
         -e NVIDIA_DRIVER_CAPABILITIES=all \
         -e XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR \
+        -e ROS_DOMAIN_ID=39 \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
         --env QT_X11_NO_MITSHM=1 \
         --net host \
@@ -40,6 +41,6 @@ else
     if [ -z "$COMMAND" ]; then
         docker exec -it ros2_vive_controller /bin/bash
     else
-        docker exec -it ros2_vive_controller /ros_entrypoint.sh $COMMAND
+        docker exec -it ros2_vive_controller /entrypoint.sh $COMMAND
     fi
 fi

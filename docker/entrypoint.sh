@@ -3,8 +3,9 @@ set -e
 
 # --- Build the ROS2 workspace ---
 cd /ros2_ws
+source /opt/ros/humble/setup.bash
 echo "🔧 Building workspace..."
-colcon build --symlink-install --packages-select ros2_vive_controller
+colcon build
 
 # Source ROS2 environment + workspace
 source /opt/ros/humble/setup.bash
@@ -16,7 +17,7 @@ if [ "$1" = "calibrate" ]; then
     exec ros2 run ros2_vive_controller calibrate_workspace
 elif [ "$1" = "joystick" ]; then
     echo "🎮 Running joystick_controller..."
-    exec ros2 run ros2_vive_controller joystick_controller
+    exec ros2 run ros2_vive_controller joystick_node
 else
     echo "⚙️ No valid argument provided. Starting bash shell..."
     exec bash

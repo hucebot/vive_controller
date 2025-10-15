@@ -118,6 +118,7 @@ RUN echo "export ROS_DOMAIN_ID=39" >> ~/.bashrc
 WORKDIR /ros2_ws/src
 RUN git clone https://github.com/hucebot/franka_custom_msgs
 
+RUN apt install -y ros-humble-rosidl-default-generators
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

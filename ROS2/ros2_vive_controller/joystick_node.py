@@ -8,7 +8,7 @@ from geometry_msgs.msg import PoseStamped, PointStamped
 from visualization_msgs.msg import Marker
 from transformations import quaternion_from_euler, quaternion_multiply
 
-from franka_custom_msgs.msg import GripperWidth
+from custom_msgs.msg import GripperWidth
 
 from OneEuroFilter import OneEuroFilter
 

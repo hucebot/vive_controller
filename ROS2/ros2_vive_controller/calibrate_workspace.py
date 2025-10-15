@@ -42,7 +42,7 @@ class CalibrationWS(Node):
 
         self.pc_pub = self.create_publisher(PointCloud2, "workspace_pointcloud", 10)
 
-        self.header_frame_id = "pelvis"
+        self.header_frame_id = self.configurations['general']['link_name']
         self.rate = 10
 
         timer_period = 1.0 / self.rate
