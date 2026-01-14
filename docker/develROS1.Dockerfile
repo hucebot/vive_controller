@@ -5,6 +5,9 @@ ENV DISPLAY=:0
 ENV ROS_DISTRO=noetic
 ENV LIBGL_ALWAYS_INDIRECT=0
 
+ARG STEAM_USER
+ARG STEAM_PASSWORD
+
 ENV DEBIAN_FRONTEND="noninteractive"
 ENV TZ="UTC"
 
@@ -51,6 +54,35 @@ RUN python3 -m pip install --upgrade pip
 RUN pip install openvr==2.5.101 \
     scipy 
 RUN pip install OneEuroFilter --upgrade
+
+###### Install streamcmd
+RUN echo "steam steam/question select I AGREE" | debconf-set-selections
+RUN echo "steam steam/license note ''" | debconf-set-selections
+
+RUN apt-get update && \
+    apt-get install -y software-properties-common
+
+RUN add-apt-repository -y multiverse
+RUN dpkg --add-architecture i386
+
+RUN apt-get update && \
+    apt-get install -y steamcmd lib32gcc-s1 && \
+    ln -sf /usr/games/steamcmd /usr/bin/steamcmd
+
+
+RUN useradd -m -s /bin/bash steam || true
+RUN mkdir -p /home/steam/.steam /home/steam/.local/share/Steam /home/steam/Steam
+RUN chown -R steam:steam /home/steam
+
+###### Install SteamVR
+RUN apt-get update
+USER steam
+RUN steamcmd +login ${STEAM_USER} ${STEAM_PASSWORD} +app_update 250820 validate +quit || true
+USER root
+
+RUN pip install OneEuroFilter --upgrade
+RUN pip install transformations
+RUN apt-get install terminator -y
 
 ###### Source the ROS setup.bash
 RUN echo "source /opt/ros/noetic/setup.bash" >> /root/.bashrc

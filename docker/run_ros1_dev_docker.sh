@@ -24,8 +24,9 @@ if [ $isRunning -eq 0 ]; then
         -v `pwd`/../ROS1/:/ros_ws/src/ros1_vive_controller \
         -v `pwd`/../config/:/ros_ws/src/ros1_vive_controller/config \
         -v `pwd`/../openvr_class/:/ros_ws/src/ros1_vive_controller/src/openvr_class \
-        -v "$HOME/.steam/debian-installation/steamapps/common/SteamVR":"$HOME/.steam/debian-installation/steamapps/common/SteamVR" \
-        -v "$HOME/.config/openvr":"/root/.config/openvr" \
+        -v `pwd`/../steamvr_config/openvrpaths.vrpath:/root/.config/openvr/openvrpaths.vrpath \
+        -v `pwd`/../steamvr_config/default_driver_null:/home/steam/Steam/steamapps/common/SteamVR/drivers/null/resources/settings/default.vrsettings \
+        -v `pwd`/../steamvr_config/default_resources:/home/steam/Steam/steamapps/common/SteamVR/resources/settings/default.vrsettings \
         -w /ros_ws \
         ros1_vive_controller:latest
 

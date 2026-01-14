@@ -52,7 +52,7 @@ The following dependencies are required to use this package:
 The easiest way to get started is to use the provided Docker image. You can find the Dockerfile in the `docker` folder. To build the image, run the following command:
 
 ```bash
-sh build_ros1.sh
+sh build_ros1.sh --steam_user=USERNAME --steam_password=PASSWORD
 ```
 
 ```bash
