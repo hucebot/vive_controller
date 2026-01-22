@@ -4,9 +4,6 @@ ENV ROS_DISTRO=humble
 ENV DISPLAY=:0
 ENV LIBGL_ALWAYS_INDIRECT=0
 
-ARG STEAM_USER
-ARG STEAM_PASSWORD
-
 SHELL ["/bin/bash", "-c"]
 
 ENV DEBIAN_FRONTEND="noninteractive"
@@ -56,12 +53,29 @@ RUN apt-get install -y \
     gnupg2 \
     lsb-release
 
-RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
-RUN apt-get update && apt-get upgrade -y
-RUN apt install ros-humble-desktop-full -y
-RUN apt install ros-dev-tools -y
-RUN rosdep init && rosdep update
+# --- ROS 2 apt repo via ros2-apt-source (handles keys correctly) ---
+RUN apt-get update; \
+    apt-get install -y --no-install-recommends curl ca-certificates gnupg; \
+    rm -rf /var/lib/apt/lists/*
+
+RUN ROS_APT_SOURCE_VERSION="$(curl -fsSL https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest \
+      | grep -F "tag_name" | awk -F\" '{print $4}')"; \
+    UBUNTU_CODENAME="$(. /etc/os-release && echo ${UBUNTU_CODENAME:-$VERSION_CODENAME})"; \
+    curl -fsSL -o /tmp/ros2-apt-source.deb \
+      "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.${UBUNTU_CODENAME}_all.deb"; \
+    dpkg -i /tmp/ros2-apt-source.deb; \
+    rm -f /tmp/ros2-apt-source.deb
+
+# Now install ROS 2
+RUN apt-get update; \
+    apt-get install -y --no-install-recommends \
+      ros-${ROS_DISTRO}-desktop-full \
+      ros-dev-tools; \
+    rm -rf /var/lib/apt/lists/*
+
+# rosdep
+RUN rosdep init || true; \
+    rosdep update
 
 ###### Install ROS Dependencies
 RUN apt install -y \
@@ -103,6 +117,9 @@ RUN useradd -m -s /bin/bash steam || true
 RUN mkdir -p /home/steam/.steam /home/steam/.local/share/Steam /home/steam/Steam
 RUN chown -R steam:steam /home/steam
 
+ARG STEAM_USER
+ARG STEAM_PASSWORD
+
 ###### Install SteamVR
 RUN apt-get update
 USER steam
@@ -113,10 +130,17 @@ RUN pip install OneEuroFilter --upgrade
 RUN pip install transformations
 RUN apt-get install terminator -y
 
-RUN echo "export ROS_DOMAIN_ID=39" >> ~/.bashrc
+RUN echo "export ROS_DOMAIN_ID=0" >> ~/.bashrc
 
 WORKDIR /ros2_ws/src
 RUN git clone https://github.com/hucebot/franka_custom_msgs
+
+###### Install CycloneDDS
+RUN apt install ros-humble-rmw-cyclonedds-cpp -y
+
+# Make it available by default
+RUN echo "source /ros2_ws/install/setup.bash" >> /root/.bashrc
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
 RUN apt install -y ros-humble-rosidl-default-generators
 COPY entrypoint.sh /entrypoint.sh

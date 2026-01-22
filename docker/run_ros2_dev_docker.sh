@@ -27,6 +27,7 @@ if [ $isRunning -eq 0 ]; then
         --device /dev/snd \
         --device /dev/input \
         --device /dev/bus/usb \
+        -v `pwd`/setup_uri.sh/:/ros2_ws/setup_uri.sh \
         -v `pwd`/../ROS2/:/ros2_ws/src/ros2_vive_controller \
         -v `pwd`/../config/:/ros2_ws/src/ros2_vive_controller/config \
         -v `pwd`/../openvr_class/:/ros2_ws/src/ros2_vive_controller/ros2_vive_controller/openvr_class \

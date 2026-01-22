@@ -40,10 +40,15 @@ class JoystickNode(Node):
         self.move_base = self.configurations['general']['move_base']
         self.link_name = self.configurations['general']['link_name']
 
-        self.initial_offset = {
-            'x': self.configurations['offset'][self.robot_name]['x'],
-            'y': self.configurations['offset'][self.robot_name]['y'],
-            'z': self.configurations['offset'][self.robot_name]['z']
+        self.initial_offset_right = {
+            'x': self.configurations['offset'][self.robot_name]['right']['x'],
+            'y': self.configurations['offset'][self.robot_name]['right']['y'],
+            'z': self.configurations['offset'][self.robot_name]['right']['z']
+        }
+        self.initial_offset_left = {
+            'x': self.configurations['offset'][self.robot_name]['left']['x'],
+            'y': self.configurations['offset'][self.robot_name]['left']['y'],
+            'z': self.configurations['offset'][self.robot_name]['left']['z']
         }
 
         # Suscribers y Publishers ROS2
@@ -209,9 +214,9 @@ class JoystickNode(Node):
             self.right_cumulative_y = 0.0
             self.right_cumulative_z = 0.0
 
-            self.right_pose_msg.pose.position.x = 0.0 + self.initial_offset['x']
-            self.right_pose_msg.pose.position.y = 0.0 + self.initial_offset['y']
-            self.right_pose_msg.pose.position.z = 0.0 + self.initial_offset['z']
+            self.right_pose_msg.pose.position.x = 0.0 + self.initial_offset_right['x']
+            self.right_pose_msg.pose.position.y = 0.0 + self.initial_offset_right['y']
+            self.right_pose_msg.pose.position.z = 0.0 + self.initial_offset_right['z']
             self.right_pose_msg.pose.orientation.x = 0.0
             self.right_pose_msg.pose.orientation.y = 0.0
             self.right_pose_msg.pose.orientation.z = 0.0
@@ -367,9 +372,9 @@ class JoystickNode(Node):
                 filtered_pose_y = fy_filter(out_y, now_sec)
                 filtered_pose_z = fz_filter(out_z, now_sec)
 
-                self.right_pose_msg.pose.position.x = filtered_pose_x * self.linear_scale + self.initial_offset['x']
-                self.right_pose_msg.pose.position.y = filtered_pose_y * self.linear_scale + self.initial_offset['y']
-                self.right_pose_msg.pose.position.z = filtered_pose_z * self.linear_scale + self.initial_offset['z']
+                self.right_pose_msg.pose.position.x = filtered_pose_x * self.linear_scale + self.initial_offset_right['x']
+                self.right_pose_msg.pose.position.y = filtered_pose_y * self.linear_scale + self.initial_offset_right['y']
+                self.right_pose_msg.pose.position.z = filtered_pose_z * self.linear_scale + self.initial_offset_right['z']
                 self.right_pose_msg.pose.orientation.x = qx
                 self.right_pose_msg.pose.orientation.y = qy
                 self.right_pose_msg.pose.orientation.z = qz
@@ -422,9 +427,9 @@ class JoystickNode(Node):
                 filtered_pose_y = fy_filter(out_y, now_sec)
                 filtered_pose_z = fz_filter(out_z, now_sec)
 
-                self.left_pose_msg.pose.position.x = filtered_pose_x * self.linear_scale + self.initial_offset['x']
-                self.left_pose_msg.pose.position.y = filtered_pose_y * self.linear_scale + self.initial_offset['y']
-                self.left_pose_msg.pose.position.z = filtered_pose_z * self.linear_scale + self.initial_offset['z']
+                self.left_pose_msg.pose.position.x = filtered_pose_x * self.linear_scale + self.initial_offset_left['x']
+                self.left_pose_msg.pose.position.y = filtered_pose_y * self.linear_scale + self.initial_offset_left['y']
+                self.left_pose_msg.pose.position.z = filtered_pose_z * self.linear_scale + self.initial_offset_left['z']
                 self.left_pose_msg.pose.orientation.x = qx
                 self.left_pose_msg.pose.orientation.y = qy
                 self.left_pose_msg.pose.orientation.z = qz
