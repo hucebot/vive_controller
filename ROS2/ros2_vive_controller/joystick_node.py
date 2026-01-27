@@ -77,6 +77,11 @@ class JoystickNode(Node):
                 self.configurations['general']['right_position_topic'],
                 10
             )
+            self.gripper_publisher_right = self.create_publisher(
+                PointStamped,
+                self.configurations['general']['right_gripper_topic'],
+                10
+            )
             # self.gripper_publisher_right = self.create_publisher(
             #     GripperWidth,
             #     self.configurations['general']['right_gripper_topic'],
@@ -398,7 +403,7 @@ class JoystickNode(Node):
                     msg.point.x = float(abs(1 - menu_button))
                     msg.point.y = 0.0
                     msg.point.z = 0.0
-                # gripper_publisher.publish(msg)
+                gripper_publisher.publish(msg)
                 if self.publish_markers:
                     self.publish_axes_marker(self.link_name, self.right_pose_msg.pose, marker_publisher)
 
@@ -446,7 +451,7 @@ class JoystickNode(Node):
                 self.left_gripper_msg.point.x = float(abs(1 - menu_button))
                 self.left_gripper_msg.point.y = 0.0
                 self.left_gripper_msg.point.z = 0.0
-                # gripper_publisher.publish(self.left_gripper_msg)
+                gripper_publisher.publish(self.left_gripper_msg)
                 if self.publish_markers:
                     self.publish_axes_marker(self.link_name, self.left_pose_msg.pose, marker_publisher)
 
