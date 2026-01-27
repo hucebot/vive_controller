@@ -8,7 +8,7 @@ from geometry_msgs.msg import PoseStamped, PointStamped
 from visualization_msgs.msg import Marker
 from transformations import quaternion_from_euler, quaternion_multiply
 
-from custom_msgs.msg import GripperWidth
+# from custom_msgs.msg import GripperWidth
 
 from OneEuroFilter import OneEuroFilter
 
@@ -25,10 +25,13 @@ class JoystickNode(Node):
         self.configurations = read_yaml(self.config_file)
         self.robot_name = self.configurations['general']['robot']
         self.v = triad_openvr(self.config_file)
-        self.v.wait_for_n_tracking_references(3)
+        self.v.wait_for_n_tracking_references(1)
         self.v.reorder_tracking_references('LHB-DFA5BD2C')
         self.v.reindex_tracking_references()
         self.v.print_discovered_objects()
+
+        self.gripper_publisher_right = None
+        self.gripper_publisher_left = None
 
         self.prev_right_mic_state = False
         self.controllers = self.v.return_controller_serials()
@@ -74,11 +77,11 @@ class JoystickNode(Node):
                 self.configurations['general']['right_position_topic'],
                 10
             )
-            self.gripper_publisher_right = self.create_publisher(
-                GripperWidth,
-                self.configurations['general']['right_gripper_topic'],
-                10
-            )
+            # self.gripper_publisher_right = self.create_publisher(
+            #     GripperWidth,
+            #     self.configurations['general']['right_gripper_topic'],
+            #     10
+            # )
             if self.robot_name == 'talos':
                 self.position_publisher_right = self.create_publisher(
                     PoseStamped,
@@ -96,11 +99,11 @@ class JoystickNode(Node):
                 self.configurations['general']['franka_position_topic'],
                 10
             )
-            self.gripper_publisher_right = self.create_publisher(
-                GripperWidth,
-                self.configurations['general']['franka_gripper_topic'],
-                10
-            )
+            # self.gripper_publisher_right = self.create_publisher(
+            #     GripperWidth,
+            #     self.configurations['general']['franka_gripper_topic'],
+            #     10
+            # )
             self.controller_name_right = self.controllers[self.right_serial]
             self.right_trigger_active = False
             self.right_reference_position = None
@@ -384,17 +387,18 @@ class JoystickNode(Node):
                 position_publisher.publish(self.right_pose_msg)
 
                 if self.robot_name == 'franka':
-                    msg = GripperWidth()
-                    msg.header = self.right_pose_msg.header
-                    msg.width = float(abs(menu_button))
+                    # msg = GripperWidth()
+                    # msg.header = self.right_pose_msg.header
+                    # msg.width = float(abs(menu_button))
+                    pass
                 
                 else:
                     msg = PointStamped()
                     msg.header = self.right_pose_msg.header
-                    msg.point.x = abs(1 - menu_button)
-                    msg.point.y = 0
-                    msg.point.z = 0
-                gripper_publisher.publish(msg)
+                    msg.point.x = float(abs(1 - menu_button))
+                    msg.point.y = 0.0
+                    msg.point.z = 0.0
+                # gripper_publisher.publish(msg)
                 if self.publish_markers:
                     self.publish_axes_marker(self.link_name, self.right_pose_msg.pose, marker_publisher)
 
@@ -439,10 +443,10 @@ class JoystickNode(Node):
                 position_publisher.publish(self.left_pose_msg)
 
                 self.left_gripper_msg.header = self.left_pose_msg.header
-                self.left_gripper_msg.point.x = abs(1 - menu_button)
-                self.left_gripper_msg.point.y = 0
-                self.left_gripper_msg.point.z = 0
-                gripper_publisher.publish(self.left_gripper_msg)
+                self.left_gripper_msg.point.x = float(abs(1 - menu_button))
+                self.left_gripper_msg.point.y = 0.0
+                self.left_gripper_msg.point.z = 0.0
+                # gripper_publisher.publish(self.left_gripper_msg)
                 if self.publish_markers:
                     self.publish_axes_marker(self.link_name, self.left_pose_msg.pose, marker_publisher)
 

@@ -1,16 +1,14 @@
 general:
-  robot: g1
   angular_scale: 1.0
   csv_path: /ros_ws/src/ros1_vive_controller/data/
   enable_microphone_topic: /vive/speak
   frame_id: pelvis
+  franka_gripper_topic: /panda_gripper/gripper_command
+  franka_position_topic: /cartesian_impedance/equilibrium_pose
   left_gripper_topic: /dxl_input/gripper_left
   left_marker_topic: /dxl_input/marker_left
   left_position_topic: /left_hand/pose_ref
-  right_gripper_topic: /dxl_input/gripper_right
-  right_marker_topic: /dxl_input/marker_right
-  right_position_topic: /right_hand/pose_ref
-  linear_scale: 2.0
+  linear_scale: 1.0
   link_name: pelvis
   move_base: false
   move_base_angular_topic: /dxl_input/angular
@@ -20,11 +18,13 @@ general:
   publish_markers: true
   rate: 90
   reset_position_topic: /streamdeck/reset_initial_state
+  right_gripper_topic: /dxl_input/gripper_right
+  right_marker_topic: /dxl_input/marker_right
+  right_position_topic: /right_hand/pose_ref
+  robot: g1
   space_scale: 1.0
   talos_right_gripper_topic: /dxl_input/gripper
   talos_right_position_topic: /dxl_input/pose
-  franka_gripper_topic: /panda_gripper/gripper_command
-  franka_position_topic: /cartesian_impedance/equilibrium_pose
   use_left_controller: false
   use_right_controller: true
   workspace_limit: 0.05
@@ -32,7 +32,7 @@ general:
 htc_vive:
   controller_1:
     name: right_controller
-    serial: LHR-9ABF6D66
+    serial: LHR-4BB3817E
     type: controller
   tracker_1:
     name: head_tracker
@@ -46,7 +46,7 @@ offset:
   franka:
     x: 0.35
     y: -0.05
-    z: 0.50
+    z: 0.5
   g1:
     left:
       x: 0.02
@@ -70,9 +70,9 @@ one_euro_filter:
   cutoff: 1.0
   mincutoff: 1.0
 workspace:
-  x_max: -0.76
-  x_min: -2.1
-  y_max: 0.39
-  y_min: -0.63
-  z_max: 0.28
-  z_min: -0.43
+  x_max: -0.54
+  x_min: -1.74
+  y_max: 0.62
+  y_min: -0.59
+  z_max: 0.54
+  z_min: -0.6
