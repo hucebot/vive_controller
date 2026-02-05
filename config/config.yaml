@@ -4,13 +4,18 @@ general:
   csv_path: /ros_ws/src/ros1_vive_controller/data/
   enable_microphone_topic: /vive/speak
   frame_id: pelvis
-  left_gripper_topic: /dxl_input/gripper_left
-  left_marker_topic: /dxl_input/marker_left
-  left_position_topic: /left_hand/pose_ref
-  right_gripper_topic: /dxl_input/gripper_right
-  right_marker_topic: /dxl_input/marker_right
-  right_position_topic: /right_hand/pose_ref
-  linear_scale: 2.0
+  franka_gripper_topic: /panda_gripper/gripper_command
+  franka_position_topic: /cartesian_impedance/equilibrium_pose
+  
+  g1_left_gripper_topic: /g1pilot/left_hand/dx3/action
+  g1_left_position_topic: /g1pilot/left_hand/pose_ref
+  g1_right_gripper_topic: /g1pilot/right_hand/dx3/action
+  g1_right_position_topic: /g1pilot/right_hand/pose_ref
+
+  left_gripper_topic: /left_hand/dx3/action
+  left_marker_topic: /left_hand/marker
+  left_position_topic: /g1pilot/hand_goal/left
+  linear_scale: 1.0
   link_name: pelvis
   move_base: false
   move_base_angular_topic: /dxl_input/angular
@@ -20,11 +25,12 @@ general:
   publish_markers: true
   rate: 90
   reset_position_topic: /streamdeck/reset_initial_state
+  right_gripper_topic: /right_hand/dx3/action
+  right_marker_topic: /right_hand/marker
+  right_position_topic: /g1pilot/hand_goal/right
   space_scale: 1.0
   talos_right_gripper_topic: /dxl_input/gripper
   talos_right_position_topic: /dxl_input/pose
-  franka_gripper_topic: /panda_gripper/gripper_command
-  franka_position_topic: /cartesian_impedance/equilibrium_pose
   use_left_controller: false
   use_right_controller: true
   workspace_limit: 0.05
@@ -32,7 +38,7 @@ general:
 htc_vive:
   controller_1:
     name: right_controller
-    serial: LHR-9ABF6D66
+    serial: LHR-4BB3817E
     type: controller
   tracker_1:
     name: head_tracker
@@ -46,16 +52,16 @@ offset:
   franka:
     x: 0.35
     y: -0.05
-    z: 0.50
+    z: 0.5
   g1:
     left:
-      x: 0.02
+      x: -0.04
       y: 0.26
-      z: -0.14
+      z: 0.53
     right:
-      x: 0.02
+      x: -0.04
       y: -0.26
-      z: -0.14
+      z: 0.53
   tiago:
     left:
       x: 0.06
@@ -70,9 +76,9 @@ one_euro_filter:
   cutoff: 1.0
   mincutoff: 1.0
 workspace:
-  x_max: -0.76
-  x_min: -2.1
-  y_max: 0.39
-  y_min: -0.63
-  z_max: 0.28
-  z_min: -0.43
+  x_max: -0.79
+  x_min: -2.09
+  y_max: 0.6
+  y_min: -1.23
+  z_max: 0.0
+  z_min: -1.32

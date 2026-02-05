@@ -33,8 +33,8 @@ def convert_to_quaternion(pose_mat):
     p_final = p_final @ (rot_vive_to_world @ rot_match_convention)
 
     # Rot 180 degrees with respect the local x axis
-    rot_180_x = R.from_euler('X', 180, degrees=True).as_matrix()
-    rot_matrix = rot_matrix @ rot_180_x
+    # rot_180_x = R.from_euler('X', 180, degrees=True).as_matrix()
+    # rot_matrix = rot_matrix @ rot_180_x
 
     qx, qy, qz, qw = R.from_matrix(rot_matrix).as_quat()
 
