@@ -140,7 +140,7 @@ RUN apt install ros-humble-rmw-cyclonedds-cpp -y
 
 # Make it available by default
 RUN echo "source /ros2_ws/install/setup.bash" >> /root/.bashrc
-ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+# ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
 RUN apt install -y ros-humble-rosidl-default-generators
 COPY entrypoint.sh /entrypoint.sh

@@ -147,4 +147,5 @@ The tracker node is responsible for publishing the position and orientation of t
 ros2 run ros2_vive_controller vive_tracker
 ```
 
-
+#### SETUP DEFAULT DDS CONFIGURATION
+ENV RMW_IMPLEMENTATION=rmw_fastrtps_cpp
