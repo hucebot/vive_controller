@@ -1,5 +1,5 @@
 FROM nvidia/opengl:1.2-glvnd-devel-ubuntu22.04
-ENV ROS_DISTRO=humble
+ENV ROS_DISTRO=jazzy
 
 ENV DISPLAY=:0
 ENV LIBGL_ALWAYS_INDIRECT=0
@@ -121,9 +121,11 @@ ARG STEAM_USER
 ARG STEAM_PASSWORD
 
 ###### Install SteamVR
+RUN echo "**** installing steam --- SteamGuard NEEDS to be disabled (or with external app - no e-mail code)"
+
 RUN apt-get update
 USER steam
-RUN steamcmd +login ${STEAM_USER} ${STEAM_PASSWORD} +app_update 250820 validate +quit || true
+RUN steamcmd +login ${STEAM_USER} ${STEAM_PASSWORD} +app_update 250820 validate +quit  || true
 USER root
 
 RUN pip install OneEuroFilter --upgrade
@@ -136,13 +138,13 @@ WORKDIR /ros2_ws/src
 RUN git clone https://github.com/hucebot/franka_custom_msgs
 
 ###### Install CycloneDDS
-RUN apt install ros-humble-rmw-cyclonedds-cpp -y
+RUN apt install ros-jazzy-rmw-cyclonedds-cpp -y
 
 # Make it available by default
 RUN echo "source /ros2_ws/install/setup.bash" >> /root/.bashrc
 # ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
-RUN apt install -y ros-humble-rosidl-default-generators
+RUN apt install -y ros-jazzy-rosidl-default-generators
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

@@ -98,16 +98,6 @@ class JoystickNode(Node):
                     self.configurations['general']['g1_right_gripper_topic'],
                     10
                 )
-                self.position_publisher_left = self.create_publisher(
-                    PoseStamped,
-                    self.configurations['general']['g1_left_position_topic'],
-                    10
-                )
-                self.gripper_publisher_left = self.create_publisher(
-                    PointStamped,
-                    self.configurations['general']['g1_left_gripper_topic'],
-                    10
-                )
                 
             if self.robot_name == 'talos':
                 self.position_publisher_right = self.create_publisher(
@@ -192,6 +182,17 @@ class JoystickNode(Node):
                 self.move_base_linear_y_publisher = self.create_publisher(
                     Float32,
                     self.configurations['general']['move_base_linear_y_topic'],
+                    10
+                )
+            if self.robot_name == 'g1':
+                self.position_publisher_left = self.create_publisher(
+                    PoseStamped,
+                    self.configurations['general']['g1_left_position_topic'],
+                    10
+                )
+                self.gripper_publisher_left = self.create_publisher(
+                    PointStamped,
+                    self.configurations['general']['g1_left_gripper_topic'],
                     10
                 )
 

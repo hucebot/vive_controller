@@ -19,6 +19,8 @@ STEAM_DIR="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="$SCRIPT_DIR/../steamvr_config"
 
+echo " STEAM_DIR: $STEAM_DIR $1" 
+
 # Source files
 FILE_NULL="$SRC_DIR/default_driver_null"
 FILE_RES="$SRC_DIR/default_resources"

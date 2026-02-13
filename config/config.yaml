@@ -29,22 +29,27 @@ general:
   space_scale: 1.0
   talos_right_gripper_topic: /dxl_input/gripper
   talos_right_position_topic: /dxl_input/pose
-  use_left_controller: false
-  use_right_controller: true
+  use_left_controller: true
+  use_right_controller: true 
   workspace_limit: 0.05
   z_threshold: 3.0
 htc_vive:
   controller_1:
     name: right_controller
+    serial: LHR-1BF07D86 #LHR-21C1BC92
+    type: controller
+  controller_2:
+    name: left_controller
     serial: LHR-21C1BC92
     type: controller
-  tracker_1:
-    name: head_tracker
-    serial: LHR-631A5257
-    type: tracker
+
+      #  tracker_1:
+      #name: head_tracker
+      #serial: LHR-631A5257
+      #type: tracker
   tracking_reference:
     name: master
-    serial: LHB-DFA5BD2C
+    serial: LHB-C335623F #,LHB-DFA5BD2C
     type: tracking_reference
 offset:
   franka:
