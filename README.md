@@ -13,6 +13,8 @@ https://docs.ros.org/en/humble/index.html)
 
 
 ## Table of Contents
+- [3d\_teleoperation\_interface](#3d_teleoperation_interface)
+  - [Table of Contents](#table-of-contents)
 - [Get Started](#get-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
@@ -21,14 +23,17 @@ https://docs.ros.org/en/humble/index.html)
   - [Reference Frames](#reference-frames)
   - [Steam VR Instructions](#steam-vr-instructions)
     - [Install Steam](#install-steam)
+    - [Using without headset](#using-without-headset)
     - [Connect Devices](#connect-devices)
   - [ROS](#ros)
     - [ROS1](#ros1)
       - [Calibrate Workspace](#calibrate-workspace)
       - [Visualize and generate the workspace](#visualize-and-generate-the-workspace)
       - [Run Joystick Node](#run-joystick-node)
-    - [ROS2](#ros2)
-      - [Tracker Node](#tracker-node)
+- [ROS 2 Usage](#ros-2-usage)
+    - [1. Workspace Calibration](#1-workspace-calibration)
+    - [2. Teleoperation](#2-teleoperation)
+      - [SETUP DEFAULT DDS CONFIGURATION](#setup-default-dds-configuration)
 
 
 
@@ -83,7 +88,7 @@ The easiest way to install Steam is to install through a command line. To do thi
 sudo apt install steam
 ```
 
-Once Steam is installed, open it and log in with your account. If you don't have an account, you can create one for free. Then, go to the Steam Store and search for SteamVR. Install it. 
+Once Steam is installed, open it and log in with your account. If you don't have an account, you can create one for free. Then, go to the Steam Store and search for SteamVR. Install it.
 Then you need to RUN the BETA Version.
 
 ### Using without headset
@@ -116,7 +121,7 @@ It is important to calibrate the workspace before using the joystick. By calibra
 rosrun ros1_vive_controller calibrate_workspace.py
 ```
 
-The idea is to move the joystick in every direction, with this you will create a PointCloud that represents the workspace. The recomendations it's to use RVIZ to visualize 
+The idea is to move the joystick in every direction, with this you will create a PointCloud that represents the workspace. The recomendations it's to use RVIZ to visualize
 this point cloud over the topic `/workspace_pointcloud`, in this way it will be more easly to see the limits of the workspace.
 
 
@@ -137,15 +142,56 @@ Finally, you can run the joystick node. With the workspace calibrated, you will 
 rosrun ros1_vive_controller joystick_node.py
 ```
 
+# ROS 2 Usage
 
-### ROS2
+The ROS 2 package `ros2_vive_controller` features a modern, unified workflow.
 
-#### Tracker Node
-The tracker node is responsible for publishing the position and orientation of the vive tracker. To run the tracker node, run the following command:
+### 1. Workspace Calibration
+
+Before teleoperating, you must define the "Safe Workspace". This prevents the robot from crashing into physical walls by limiting the VR controller's effective range.
+
+We use a **Unified Calibration Node** that visualizes the process live in RViz.
+
+**Launch:**
 
 ```bash
-ros2 run ros2_vive_controller vive_tracker
+ros2 launch ros2_vive_controller calibration.launch.py
+
 ```
+
+**Instructions:**
+
+1. **Check Tracking:** Look at RViz. You should see a **RED Cube** following your controller.
+2. **Paint Bounds:** Walk to the corners of your safe area. Hold the **Trigger** to record points.
+* *Visual:* The cursor turns **GREEN**, and a point cloud appears.
+* *Feedback:* A green bounding box will grow in real-time to encompass your points.
+
+
+3. **Save:** Press `Ctrl+C` in the terminal.
+* The node automatically filters outliers (z-score), calculates the new limits, and updates `config/config.yaml`.
+
+
+
+### 2. Teleoperation
+
+Once calibrated, run the main joystick node to control the robot.
+
+**Run:**
+
+```bash
+ros2 run ros2_vive_controller joystick_node
+
+```
+
+**Features:**
+
+* **Deadman Switch:** Hold the Trigger to engage movement (Clutch). Release to reposition your hand without moving the robot.
+* **Safety Walls:** If you reach the edge of the calibrated workspace, the controller vibrates and motion stops.
+* **Smoothing:** Position data is filtered using a OneEuro filter to remove jitter.
 
 #### SETUP DEFAULT DDS CONFIGURATION
 ENV RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+
+
+
+
