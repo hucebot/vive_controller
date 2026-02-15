@@ -25,23 +25,23 @@ general:
   right_gripper_topic: /right_hand/dx3/action
   right_marker_topic: /right_hand/marker
   right_position_topic: /g1pilot/hand_goal/right
-  robot: g1
+  robot: tiago
   space_scale: 1.0
   talos_right_gripper_topic: /dxl_input/gripper
   talos_right_position_topic: /dxl_input/pose
-  use_left_controller: false
+  use_left_controller: true
   use_right_controller: true
   workspace_limit: 0.05
   z_threshold: 3.0
 htc_vive:
   controller_1:
     name: right_controller
-    serial: LHR-21C1BC92
+    serial: LHR-97752221
     type: controller
-  tracker_1:
-    name: head_tracker
-    serial: LHR-631A5257
-    type: tracker
+  controller_2:
+    name: left_controller
+    serial: LHR-4BB3817E
+    type: controller
   tracking_reference:
     name: master
     serial: LHB-DFA5BD2C
@@ -74,9 +74,9 @@ one_euro_filter:
   cutoff: 1.0
   mincutoff: 1.0
 workspace:
-  x_max: -0.69
-  x_min: -1.89
-  y_max: 1.16
-  y_min: -0.18
-  z_max: 0.39
-  z_min: -1.2
+  x_max: -0.66
+  x_min: -2.12
+  y_max: 1.19
+  y_min: -0.1
+  z_max: -0.37
+  z_min: -1.58
