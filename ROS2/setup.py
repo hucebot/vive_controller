@@ -34,6 +34,7 @@ setup(
             'vive_tracker = ros2_vive_controller.vive_tracker:main',
             'calibration_node = ros2_vive_controller.calibrate_workspace:main',
             'joystick_node = ros2_vive_controller.joystick_node:main',
+            'teleop_bridge_node = ros2_vive_controller.teleop_bridge_node:main',
         ],
     },
 )
