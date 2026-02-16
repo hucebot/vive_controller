@@ -16,11 +16,13 @@ setup(
         # 1. Install Launch Files
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
 
-        # 2. Install Config Files
+        # 2. Install Config Files (YAML)
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
 
-        # 3. Install RViz Files (Ensure you have a 'rviz' folder in your src!)
-        (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
+        # 3. Install RViz Files
+        # (We install them into 'config' destination so the launch file finds them)
+        # Ensure your local .rviz files are inside the 'config' folder in your source!
+        (os.path.join('share', package_name, 'config'), glob('config/*.rviz')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -31,9 +33,12 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'vive_tracker = ros2_vive_controller.vive_tracker:main',
-            'calibration_node = ros2_vive_controller.calibrate_workspace:main',
+            # The old Driver
             'joystick_node = ros2_vive_controller.joystick_node:main',
+            # The main driver
+            'vive_node = ros2_vive_controller.vive_node:main',
+            # The New Calibration Tool (Filename: calibration_node.py)
+            'calibration_node = ros2_vive_controller.calibration_node:main',
         ],
     },
 )

@@ -1,0 +1,19 @@
+/vive/*:
+  ros__parameters:
+    htc_vive:
+      tracking_reference: "LHB-DFA5BD2C"
+      serial_left: "LHR-97752221"
+      serial_right: "LHR-4BB3817E"
+    frame_id: "vive_world"
+    workspace:
+      x_min: -1.5
+      x_max: 1.5
+      y_min: -1.5
+      y_max: 1.5
+      z_min: 0.2
+      z_max: 2.2
+      padding: 0.15
+    filter:
+      mincutoff: 1.0
+      beta: 0.007
+      dcutoff: 1.0
