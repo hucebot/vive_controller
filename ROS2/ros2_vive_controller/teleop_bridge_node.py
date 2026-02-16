@@ -178,7 +178,7 @@ class TeleopBridgeNode(Node):
         else:
             # if not activated, publish the last computed message
             # (if we want to publish continuously, we push always the same)
-            output_msg = self.last_output_msg #if self.last_output_msg is not None else
+            output_msg = self.last_output_msg
 
         # publish (since we are asked to publish)
         # but nothing will be published until the first message
