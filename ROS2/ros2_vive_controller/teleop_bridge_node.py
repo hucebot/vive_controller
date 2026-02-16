@@ -15,17 +15,24 @@ class TeleopBridgeNode(Node):
         self.declare_parameter('pose_topic', '/vive/left')
         self.declare_parameter('button_state_topic', '/vive/button_state')
         self.declare_parameter('output_topic', '/vive/output_pose')
-        self.declare_parameter('publish_frequency', 30.0)  # -1 for event-driven
+        # -1 for event-driven
+        self.declare_parameter('publish_frequency', 30.0)
         self.declare_parameter('target_frame', 'base_link')
         self.declare_parameter('reference_frame', 'world')
 
         # Get parameters
-        self.pose_topic = self.get_parameter('pose_topic').get_parameter_value().string_value
-        self.button_state_topic = self.get_parameter('button_state_topic').get_parameter_value().string_value
-        self.output_topic = self.get_parameter('output_topic').get_parameter_value().string_value
-        self.publish_frequency = self.get_parameter('publish_frequency').get_parameter_value().double_value
-        self.target_frame = self.get_parameter('target_frame').get_parameter_value().string_value
-        self.reference_frame = self.get_parameter('reference_frame').get_parameter_value().string_value
+        self.pose_topic = self.get_parameter(
+            'pose_topic').get_parameter_value().string_value
+        self.button_state_topic = self.get_parameter(
+            'button_state_topic').get_parameter_value().string_value
+        self.output_topic = self.get_parameter(
+            'output_topic').get_parameter_value().string_value
+        self.publish_frequency = self.get_parameter(
+            'publish_frequency').get_parameter_value().double_value
+        self.target_frame = self.get_parameter(
+            'target_frame').get_parameter_value().string_value
+        self.reference_frame = self.get_parameter(
+            'reference_frame').get_parameter_value().string_value
 
         # TF2 setup
         self.tf_buffer = Buffer()
@@ -76,7 +83,8 @@ class TeleopBridgeNode(Node):
             )
 
         self.get_logger().info(f'Subscribed to pose: {self.pose_topic}')
-        self.get_logger().info(f'Subscribed to button_state: {self.button_state_topic}')
+        self.get_logger().info(
+            f'Subscribed to button_state: {self.button_state_topic}')
 
     def pose_callback(self, msg):
         """Store the latest pose message"""
@@ -127,7 +135,8 @@ class TeleopBridgeNode(Node):
         # Check if first button was just pressed (transition from 0 to 1)
         if len(msg.position) > 0:
             current_button = msg.position[0]
-            prev_button = self.prev_button_state.position[0] if self.prev_button_state and len(self.prev_button_state.position) > 0 else 0.0
+            prev_button = self.prev_button_state.position[0] if self.prev_button_state and len(
+                self.prev_button_state.position) > 0 else 0.0
 
             # Detect rising edge (button press)
             if current_button == 1.0 and prev_button != 1.0:
@@ -152,16 +161,16 @@ class TeleopBridgeNode(Node):
             delta_x = self.latest_pose.pose.position.x - self.joy_translation.x
             delta_y = self.latest_pose.pose.position.y - self.joy_translation.y
             delta_z = self.latest_pose.pose.position.z - self.joy_translation.z
-            
+
             # Apply delta to EE position
             output_msg = PoseStamped()
             output_msg.header = self.latest_pose.header
-            output_msg.header.stamp = self.get_clock().now().to_msg()       
+            output_msg.header.stamp = self.get_clock().now().to_msg()
             output_msg.pose.position.x = self.ee_translation.x + delta_x
             output_msg.pose.position.y = self.ee_translation.y + delta_y
             output_msg.pose.position.z = self.ee_translation.z + delta_z
-            
-            # keep the orientation 
+
+            # keep the orientation
             output_msg.pose.orientation = self.latest_pose.pose.orientation
 
             # save for future use
@@ -169,8 +178,8 @@ class TeleopBridgeNode(Node):
         else:
             # if not activated, publish the last computed message
             # (if we want to publish continuously, we push always the same)
-            output_msg = self.last_output_msg if self.last_output_msg is not None
-        
+            output_msg = self.last_output_msg #if self.last_output_msg is not None else
+
         # publish (since we are asked to publish)
         # but nothing will be published until the first message
         if output_msg is not None:

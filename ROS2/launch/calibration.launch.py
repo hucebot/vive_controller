@@ -6,30 +6,41 @@ from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 
 def generate_launch_description():
-    # 1. Get Package Path
     pkg_share = get_package_share_directory('ros2_vive_controller')
-
-    # 2. Define Paths
-    # RViz Config: We put this in 'config' to keep things organized, matching your other files
     rviz_config = os.path.join(pkg_share, 'config', 'calibration.rviz')
 
-    # Config File: This is where the node will WRITE the new calibration data.
-    # CRITICAL: We default to the SOURCE path inside the Docker container so changes persist.
-    # If we used pkg_share, we would edit the 'install' folder, which is lost on rebuild.
+    # Path to the SOURCE yaml so changes persist after container restart
     default_config_path = '/ros2_ws/src/ros2_vive_controller/config/vive.params.yaml'
 
+    # --- Hardcoded Driver Params (For Calibration Convenience) ---
+    driver_params = {
+        'side': 'right',
+        'serial': 'LHR-4BB3817E',
+        'frame_id': 'vive_world'
+    }
+
     return LaunchDescription([
-        # Allow overriding the path from command line if needed
         DeclareLaunchArgument(
             'config_path',
             default_value=default_config_path,
-            description='Path to vive.params.yaml (Source file, not installed file)'
+            description='Path to vive.params.yaml'
         ),
 
-        # 3. Calibration Node
+        # 1. THE DRIVER (The Data Source)
+        # We need this running so /vive/right/pose exists!
         Node(
             package='ros2_vive_controller',
-            executable='calibration_node', # Entry point defined in setup.py
+            executable='vive_node',
+            name='calibration_driver_right',
+            namespace='vive/right',
+            output='screen',
+            parameters=[driver_params]
+        ),
+
+        # 2. THE CALIBRATION NODE (The Data Processor)
+        Node(
+            package='ros2_vive_controller',
+            executable='calibration_node',
             name='calibration_node',
             output='screen',
             parameters=[{
@@ -38,7 +49,7 @@ def generate_launch_description():
             }]
         ),
 
-        # 4. RViz2
+        # 3. RVIZ2
         Node(
             package='rviz2',
             executable='rviz2',

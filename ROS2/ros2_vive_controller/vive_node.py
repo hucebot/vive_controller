@@ -5,76 +5,37 @@ from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import JointState
 from visualization_msgs.msg import Marker
 from OneEuroFilter import OneEuroFilter
+# Ensure your import matches your folder structure
 from ros2_vive_controller.openvr_class.openvr_class import triad_openvr
-
 
 class ViveDriverNode(Node):
     def __init__(self):
-        # 1. Initialize with "Override" priority
-        super().__init__(
-            'vive_driver',
-            allow_undeclared_parameters=True,
-            automatically_declare_parameters_from_overrides=True
+        super().__init__('vive_driver')
+
+        # --- Parameters ---
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('side', 'right'),
+                ('serial', ''),
+                ('frame_id', 'vive_world'),
+                # Workspace Limits (meters)
+                ('workspace.x_min', -1.0), ('workspace.x_max', 1.0),
+                ('workspace.y_min', -1.0), ('workspace.y_max', 1.0),
+                ('workspace.z_min', 0.0),  ('workspace.z_max', 2.0),
+                ('workspace.padding', 0.1), # Vibration buffer zone
+                # Smoothing
+                ('filter.mincutoff', 1.0),
+                ('filter.beta', 0.007),
+                ('filter.dcutoff', 1.0)
+            ]
         )
 
-        # 2. Extract Values
-        # Note: We use .value directly because automatically_declare handles the setup
         self.side = self.get_parameter('side').value
+        self.serial = self.get_parameter('serial').value
+        self.frame_id = self.get_parameter('frame_id').value
 
-        # Pull Serials
-        self.serial_l = self.get_parameter('htc_vive.serial_left').value
-        self.serial_r = self.get_parameter('htc_vive.serial_right').value
-        self.ref_serial = self.get_parameter(
-            'htc_vive.tracking_reference').value
-
-        # 3. Logic to pick target
-        if self.side == 'left':
-            self.target_serial = self.serial_l
-        else:
-            self.target_serial = self.serial_r
-
-        # --- CRITICAL LOGGING ---
-        # If these are empty here, the Launch file dictionary isn't reaching the node
-        self.get_logger().info(f"--- NODE SIDE: {self.side} ---")
-        self.get_logger().info(f"Target Serial: '{self.target_serial}'")
-        self.get_logger().info(f"Ref Serial:    '{self.ref_serial}'")
-
-        # 4. Construct Config for OpenVR
-        vr_config = {
-            "devices": [
-                {"serial": self.target_serial,
-                    "name": "my_controller", "type": "Controller"}
-            ]
-        }
-        if self.ref_serial:
-            vr_config["devices"].append({
-                "serial": self.ref_serial, "name": "base_station", "type": "Tracking Reference"
-            })
-
-        # 5. Init VR
-        try:
-            # Check your triad_openvr __init__ signature!
-            # If it's (self, config_dict=None), use:
-            self.vr = triad_openvr(vr_config)
-        except Exception as e:
-            self.get_logger().error(f"VR Init Error: {e}")
-            return
-        self.vr.wait_for_n_tracking_references(1)
-        self.vr.reorder_tracking_references(ref_serial)
-        self.vr.reindex_tracking_references()
-        self.controllers = self.vr.return_controller_serials()
-
-        # Check if OUR specific controller was found
-        if "my_controller" in self.vr.devices:
-            self.device_name = "my_controller"
-            self.get_logger().info(
-                f"✅ Connected to {self.side} ({self.target_serial})")
-        else:
-            self.device_name = None
-            self.get_logger().error(
-                f"❌ Controller {self.target_serial} NOT FOUND")
-
-        # --- 5. Workspace & Publishers ---
+        # Load Workspace Cache
         self.ws = {
             'x_min': self.get_parameter('workspace.x_min').value,
             'x_max': self.get_parameter('workspace.x_max').value,
@@ -85,18 +46,32 @@ class ViveDriverNode(Node):
             'pad': self.get_parameter('workspace.padding').value
         }
 
+        # --- VR Setup ---
+        self.vr = triad_openvr()
+        self.device_name = self._find_device_by_serial(self.serial)
+
+        if not self.device_name:
+            self.get_logger().error(f"Could not find controller {self.serial}")
+            # We don't crash, allowing potential re-connection logic later
+        else:
+            self.get_logger().info(f"Connected to {self.side} controller: {self.serial}")
+
+        # --- Publishers ---
         self.pub_pose = self.create_publisher(PoseStamped, 'pose', 10)
         self.pub_joy = self.create_publisher(JointState, 'joint_states', 10)
         self.pub_marker = self.create_publisher(Marker, 'workspace_marker', 10)
+
+        # --- Filters ---
         self.filters = self._init_filters()
 
-        self.create_timer(0.02, self.update)
+        # --- Loop ---
+        self.create_timer(0.02, self.update) # 50Hz
+
+        # Publish marker once at startup (and periodically in loop)
         self.publish_workspace_marker()
 
     def _find_device_by_serial(self, target_serial):
         for key, dev in self.vr.devices.items():
-            self.get_logger().info(
-                f"Checking device {key} with serial {dev.get_serial()}")
             if dev.get_serial() == target_serial:
                 return key
         return None
@@ -128,28 +103,26 @@ class ViveDriverNode(Node):
         if not in_bounds:
             # Vibrate the controller (Haptic Feedback) - 2ms pulse
             device.trigger_haptic_pulse(2000)
-            return False  # Unsafe
+            return False # Unsafe
 
-        return True  # Safe
+        return True # Safe
 
     def update(self):
-        if not self.device_name:
-            return
+        if not self.device_name: return
 
         controller = self.vr.devices[self.device_name]
         pose = controller.get_pose_quaternion()
         inputs = controller.get_controller_inputs()
 
-        if not pose or not inputs:
-            return
+        if not pose or not inputs: return
 
         # --- 1. SAFETY CHECK (The Gatekeeper) ---
         raw_pos = pose[0:3]
         is_safe = self.check_workspace_and_vibrate(raw_pos, controller)
-
+        # TODO: pulish or not publish this in the future based on a param (if calibrating or not)
         # IF UNSAFE: STOP HERE. DO NOT PUBLISH.
-        if not is_safe:
-            return
+        # if not is_safe:
+        #     return
 
         # --- 2. Publish Data (Only if Safe) ---
         timestamp = self.get_clock().now().to_msg()
@@ -174,8 +147,7 @@ class ViveDriverNode(Node):
         msg_joy = JointState()
         msg_joy.header.stamp = timestamp
         msg_joy.header.frame_id = self.frame_id
-        msg_joy.name = ['trigger', 'trackpad_x', 'trackpad_y',
-                        'grip', 'menu', 'trackpad_touched', 'trackpad_pressed']
+        msg_joy.name = ['trigger', 'trackpad_x', 'trackpad_y', 'grip', 'menu', 'trackpad_touched', 'trackpad_pressed']
         msg_joy.position = [
             float(inputs.get('trigger', 0.0)),
             float(inputs.get('trackpad_x', 0.0)),
@@ -189,9 +161,8 @@ class ViveDriverNode(Node):
 
         # C. Visualization
         # We publish this occasionally so RViz always shows the red box
-        # Only update marker when interacting to save bandwidth
-        if inputs.get('trackpad_touched', False):
-            self.publish_workspace_marker()
+        if inputs.get('trackpad_touched', False): # Only update marker when interacting to save bandwidth
+             self.publish_workspace_marker()
 
     def publish_workspace_marker(self):
         m = Marker()
@@ -208,9 +179,8 @@ class ViveDriverNode(Node):
         m.pose.position.y = (self.ws['y_max'] + self.ws['y_min']) / 2.0
         m.pose.position.z = (self.ws['z_max'] + self.ws['z_min']) / 2.0
         m.pose.orientation.w = 1.0
-        m.color.r, m.color.g, m.color.b, m.color.a = 1.0, 0.0, 0.0, 0.15  # Red Transparent
+        m.color.r, m.color.g, m.color.b, m.color.a = 1.0, 0.0, 0.0, 0.15 # Red Transparent
         self.pub_marker.publish(m)
-
 
 def main():
     rclpy.init()
@@ -221,7 +191,6 @@ def main():
         pass
     node.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()
