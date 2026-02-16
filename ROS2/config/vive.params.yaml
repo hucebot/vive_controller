@@ -10,7 +10,7 @@
 /vive/**:
   ros__parameters:
     filter:
-      beta: 0.007
+      beta: 0.01
       dcutoff: 1.0
       mincutoff: 1.0
     frame_id: vive_world

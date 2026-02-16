@@ -1,7 +1,7 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, TimerAction
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -19,6 +19,24 @@ def generate_launch_description():
             description='Open RViz to visualize'
         ),
 
+        DeclareLaunchArgument(
+            'serial_left',
+            default_value='LHR-97752221',
+            description='Serial number for the left controller'
+        ),
+
+        DeclareLaunchArgument(
+            'serial_right',
+            default_value='LHR-4BB3817E',
+            description='Serial number for the right controller'
+        ),
+
+        DeclareLaunchArgument(
+            'tracking_reference',
+            default_value='LHB-DFA5BD2C',
+            description='Serial number for the tracking reference (base station)'
+        ),
+
         # # --- LEFT HAND DRIVER ---
         Node(
             package='ros2_vive_controller',
@@ -29,24 +47,28 @@ def generate_launch_description():
             parameters=[
                 vive_params_file,
                 {'side': 'left',
-                 'serial': 'LHR-97752221'}
+                 'serial': LaunchConfiguration('serial_left'),
+                 'htc_vive.tracking_reference': LaunchConfiguration('tracking_reference')}
             ]
         ),
 
-        # --- RIGHT HAND DRIVER ---
-        Node(
-            package='ros2_vive_controller',
-            executable='vive_node',
-            name='driver_right',
-            namespace='vive/right',
-            output='screen',
-            parameters=[
-                vive_params_file,
-                {'side': 'right',
-                 'serial': 'LHR-4BB3817E'
-                 }
-            ]
-        ),
+        # --- RIGHT HAND DRIVER (delayed to avoid OpenVR IPC conflict) ---
+        TimerAction(period=2.0, actions=[
+            Node(
+                package='ros2_vive_controller',
+                executable='vive_node',
+                name='driver_right',
+                namespace='vive/right',
+                output='screen',
+                parameters=[
+                    vive_params_file,
+                    {'side': 'right',
+                     'serial': LaunchConfiguration('serial_right'),
+                     'htc_vive.tracking_reference': LaunchConfiguration('tracking_reference')
+                     }
+                ]
+            ),
+        ]),
 
         # --- RVIZ ---
         Node(
