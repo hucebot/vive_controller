@@ -9,24 +9,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     pkg_share = get_package_share_directory('ros2_vive_controller')
     rviz_config = os.path.join(pkg_share, 'config', 'view_vive.rviz')
-
-    # Hardcoded parameters dictionary
-    vive_params = {
-        'htc_vive.tracking_reference': 'LHB-DFA5BD2C',
-        'htc_vive.serial_left': 'LHR-97752221',
-        'htc_vive.serial_right': 'LHR-4BB3817E',
-        'frame_id': 'vive_world',
-        'workspace.x_min': -1.5,
-        'workspace.x_max': 1.5,
-        'workspace.y_min': -1.5,
-        'workspace.y_max': 1.5,
-        'workspace.z_min': 0.2,
-        'workspace.z_max': 2.2,
-        'workspace.padding': 0.15,
-        'filter.mincutoff': 1.0,
-        'filter.beta': 0.007,
-        'filter.dcutoff': 1.0
-    }
+    vive_params_file = os.path.join(pkg_share, 'config', 'vive.params.yaml')
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -43,7 +26,7 @@ def generate_launch_description():
             namespace='vive/left',
             output='screen',
             parameters=[
-                vive_params,
+                vive_params_file,
                 {'side': 'left'}
             ]
         ),
@@ -56,7 +39,7 @@ def generate_launch_description():
             namespace='vive/right',
             output='screen',
             parameters=[
-                vive_params,
+                vive_params_file,
                 {'side': 'right'}
             ]
         ),
