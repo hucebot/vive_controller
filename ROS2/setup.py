@@ -39,6 +39,7 @@ setup(
             'vive_node = ros2_vive_controller.vive_node:main',
             # The New Calibration Tool (Filename: calibration_node.py)
             'calibration_node = ros2_vive_controller.calibration_node:main',
+            'teleop_bridge_node = ros2_vive_controller.teleop_bridge_node:main',
         ],
     },
 )
