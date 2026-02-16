@@ -128,6 +128,7 @@ class TeleopBridgeNode(Node):
         except Exception as e:
             self.get_logger().warn(f'Failed to lookup transform: {e}')
 
+
     def button_state_callback(self, msg):
         """Store the latest button state message and check for button press"""
         self.latest_button_state = msg
@@ -141,6 +142,8 @@ class TeleopBridgeNode(Node):
             # Detect rising edge (button press)
             if current_button == 1.0 and prev_button != 1.0:
                 self.activate()
+            if current_button != 1.0 and prev_button == 1.0:
+                self.activated = False
 
         # Store current state for next comparison
         self.prev_button_state = msg
@@ -165,6 +168,7 @@ class TeleopBridgeNode(Node):
             # Apply delta to EE position
             output_msg = PoseStamped()
             output_msg.header = self.latest_pose.header
+            output_msg.header.frame_id = self.target_frame
             output_msg.header.stamp = self.get_clock().now().to_msg()
             output_msg.pose.position.x = self.ee_translation.x + delta_x
             output_msg.pose.position.y = self.ee_translation.y + delta_y
@@ -172,7 +176,6 @@ class TeleopBridgeNode(Node):
 
             # keep the orientation
             output_msg.pose.orientation = self.latest_pose.pose.orientation
-
             # save for future use
             self.last_output_msg = output_msg
         else:
