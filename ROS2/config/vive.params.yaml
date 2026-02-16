@@ -1,4 +1,4 @@
-/vive/*:
+/**:
   ros__parameters:
     htc_vive:
       tracking_reference: "LHB-DFA5BD2C"
