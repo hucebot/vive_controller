@@ -33,12 +33,11 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            # The old Driver
-            'joystick_node = ros2_vive_controller.joystick_node:main',
             # The main driver
             'vive_node = ros2_vive_controller.vive_node:main',
             # The New Calibration Tool (Filename: calibration_node.py)
             'calibration_node = ros2_vive_controller.calibration_node:main',
+            # The Teleop Bridge (Filename: teleop_bridge_node.py)
             'teleop_bridge_node = ros2_vive_controller.teleop_bridge_node:main',
         ],
     },
