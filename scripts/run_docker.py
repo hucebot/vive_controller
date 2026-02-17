@@ -70,7 +70,7 @@ def run_docker(args):
         "-e", "QT_X11_NO_MITSHM=1",
         "-e", f"ROS_DOMAIN_ID={args.domain}",
         "-e", "RMW_IMPLEMENTATION=rmw_cyclonedds_cpp",
-        "-e", "CYCLONEDDS_URI=/ros2_ws/src/ros2_vive_controller/config/cyclonedds.xml",
+        # "-e", "CYCLONEDDS_URI=/ros2_ws/src/ros2_vive_controller/config/cyclonedds.xml",
         # Hardware
         "-v", "/tmp/.X11-unix:/tmp/.X11-unix",
         "-v", "/dev:/dev",
