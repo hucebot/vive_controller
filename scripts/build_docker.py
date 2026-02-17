@@ -5,7 +5,7 @@ import os
 import sys
 
 # Default Configuration
-DEFAULT_REGISTRY = "registry.gitlab.inria.fr/eurobin-horizon/code/ros2-vive-controller"
+DEFAULT_REGISTRY = "registry.gitlab.inria.fr/eurobin-horizon/code/vive_controller_tiago"
 IMAGE_NAME = "vive-controller"
 
 def get_project_version():
