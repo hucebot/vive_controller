@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
+import time
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Bool
 from sensor_msgs.msg import JointState
 from visualization_msgs.msg import Marker
 from OneEuroFilter import OneEuroFilter
 # Ensure your import matches your folder structure
 from ros2_vive_controller.openvr_class.openvr_class import triad_openvr
+
 
 class ViveDriverNode(Node):
     def __init__(self):
@@ -23,7 +26,7 @@ class ViveDriverNode(Node):
                 ('workspace.x_min', -1.0), ('workspace.x_max', 1.0),
                 ('workspace.y_min', -1.0), ('workspace.y_max', 1.0),
                 ('workspace.z_min', 0.0),  ('workspace.z_max', 2.0),
-                ('workspace.padding', 0.1), # Vibration buffer zone
+                ('workspace.padding', 0.1),  # Vibration buffer zone
                 # Smoothing
                 ('filter.mincutoff', 1.0),
                 ('filter.beta', 0.007),
@@ -54,27 +57,50 @@ class ViveDriverNode(Node):
             self.get_logger().error(f"Could not find controller {self.serial}")
             # We don't crash, allowing potential re-connection logic later
         else:
-            self.get_logger().info(f"Connected to {self.side} controller: {self.serial}")
+            self.get_logger().info(
+                f"Connected to {self.side} controller: {self.serial}")
 
         # --- Publishers ---
         self.pub_pose = self.create_publisher(PoseStamped, 'pose', 10)
         self.pub_joy = self.create_publisher(JointState, 'joint_states', 10)
         self.pub_marker = self.create_publisher(Marker, 'workspace_marker', 10)
-
+        self.is_calibrating = False
+        self.create_subscription(
+            Bool, '/vive/is_calibrating', self.calibration_callback, 10)
+        self.create_timer(0.05, self.watchdog_check)
         # --- Filters ---
         self.filters = self._init_filters()
 
         # --- Loop ---
-        self.create_timer(0.02, self.update) # 50Hz
+        self.create_timer(0.02, self.update)  # 50Hz
 
         # Publish marker once at startup (and periodically in loop)
         self.publish_workspace_marker()
+
+        # Tracking staate
+        self.tracking_active = False  # Flag to track if we currently have valid tracking
+        self.haptic_frames_remaining = 0  # Counter for vibration duration
 
     def _find_device_by_serial(self, target_serial):
         for key, dev in self.vr.devices.items():
             if dev.get_serial() == target_serial:
                 return key
         return None
+
+    def calibration_callback(self, msg):
+        if msg.data:
+            self.is_calibrating = True
+            # Reset the watchdog timer
+            self.last_heartbeat_time = self.get_clock().now().nanoseconds / 1e9
+
+    def watchdog_check(self):
+        # If we haven't heard a heartbeat in 0.5 seconds, Force Safety ON
+        now = self.get_clock().now().nanoseconds / 1e9
+        timeout = 0.5
+
+        if self.is_calibrating and (now - self.last_heartbeat_time > timeout):
+            self.get_logger().warn("Calibration heartbeat lost! Re-enabling safety limits.")
+            self.is_calibrating = False
 
     def _init_filters(self):
         params = {
@@ -103,26 +129,37 @@ class ViveDriverNode(Node):
         if not in_bounds:
             # Vibrate the controller (Haptic Feedback) - 2ms pulse
             device.trigger_haptic_pulse(2000)
-            return False # Unsafe
+            return False  # Unsafe
 
-        return True # Safe
+        return True  # Safe
 
     def update(self):
-        if not self.device_name: return
+        if not self.device_name:
+            return
 
         controller = self.vr.devices[self.device_name]
         pose = controller.get_pose_quaternion()
         inputs = controller.get_controller_inputs()
 
-        if not pose or not inputs: return
+        if pose is None:
+            if self.tracking_active:
+                self.get_logger().warn(f"Tracking LOST for {self.side}")
+                self.tracking_active = False
+            return # Exit early
 
-        # --- 1. SAFETY CHECK (The Gatekeeper) ---
-        raw_pos = pose[0:3]
-        is_safe = self.check_workspace_and_vibrate(raw_pos, controller)
-        # TODO: pulish or not publish this in the future based on a param (if calibrating or not)
-        # IF UNSAFE: STOP HERE. DO NOT PUBLISH.
-        # if not is_safe:
-        #     return
+        # If we just regained tracking (pose is valid, but flag was False)
+        if not self.tracking_active:
+            self.get_logger().info(f"Tracking ACQUIRED for {self.side}! Buzzing...")
+            self.tracking_active = True
+            self.haptic_frames_remaining = 50 # Vibrate for 50 frames (~1 second)
+
+        # --- 2. NON-BLOCKING VIBRATION ---
+        # If the counter is > 0, vibrate this frame and decrease counter
+        if self.haptic_frames_remaining > 0:
+            controller.trigger_haptic_pulse(3000) # Strong pulse
+            self.haptic_frames_remaining -= 1
+
+        # --- 3. SAFETY CHECK ---
 
         # --- 2. Publish Data (Only if Safe) ---
         timestamp = self.get_clock().now().to_msg()
@@ -147,7 +184,8 @@ class ViveDriverNode(Node):
         msg_joy = JointState()
         msg_joy.header.stamp = timestamp
         msg_joy.header.frame_id = self.frame_id
-        msg_joy.name = ['trigger', 'trackpad_x', 'trackpad_y', 'grip', 'menu', 'trackpad_touched', 'trackpad_pressed']
+        msg_joy.name = ['trigger', 'trackpad_x', 'trackpad_y',
+                        'grip', 'menu', 'trackpad_touched', 'trackpad_pressed']
         msg_joy.position = [
             float(inputs.get('trigger', 0.0)),
             float(inputs.get('trackpad_x', 0.0)),
@@ -161,8 +199,9 @@ class ViveDriverNode(Node):
 
         # C. Visualization
         # We publish this occasionally so RViz always shows the red box
-        if inputs.get('trackpad_touched', False): # Only update marker when interacting to save bandwidth
-             self.publish_workspace_marker()
+        # Only update marker when interacting to save bandwidth
+        if inputs.get('trackpad_touched', False):
+            self.publish_workspace_marker()
 
     def publish_workspace_marker(self):
         m = Marker()
@@ -179,8 +218,9 @@ class ViveDriverNode(Node):
         m.pose.position.y = (self.ws['y_max'] + self.ws['y_min']) / 2.0
         m.pose.position.z = (self.ws['z_max'] + self.ws['z_min']) / 2.0
         m.pose.orientation.w = 1.0
-        m.color.r, m.color.g, m.color.b, m.color.a = 1.0, 0.0, 0.0, 0.15 # Red Transparent
+        m.color.r, m.color.g, m.color.b, m.color.a = 1.0, 0.0, 0.0, 0.15  # Red Transparent
         self.pub_marker.publish(m)
+
 
 def main():
     rclpy.init()
@@ -191,6 +231,7 @@ def main():
         pass
     node.destroy_node()
     rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()

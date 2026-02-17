@@ -7,7 +7,7 @@ from launch.substitutions import LaunchConfiguration
 
 def generate_launch_description():
     pkg_share = get_package_share_directory('ros2_vive_controller')
-    rviz_config = os.path.join(pkg_share, 'config', 'calibration.rviz')
+    rviz_config = os.path.join(pkg_share, 'rviz', 'calibration.rviz')
 
     # Path to the SOURCE yaml so changes persist after container restart
     default_config_path = '/ros2_ws/src/ros2_vive_controller/config/vive.params.yaml'
