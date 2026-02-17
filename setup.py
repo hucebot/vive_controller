@@ -20,9 +20,7 @@ setup(
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
 
         # 3. Install RViz Files
-        # (We install them into 'config' destination so the launch file finds them)
-        # Ensure your local .rviz files are inside the 'config' folder in your source!
-        (os.path.join('share', package_name, 'config'), glob('config/*.rviz')),
+        (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

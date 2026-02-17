@@ -1,16 +1,34 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.actions import DeclareLaunchArgument, TimerAction, LogInfo
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-
 def generate_launch_description():
     pkg_share = get_package_share_directory('ros2_vive_controller')
-    rviz_config = os.path.join(pkg_share, 'config', 'view_vive.rviz')
+
+    # Check if we should use 'vive.rviz' or 'view_vive.rviz' based on your file tree
+    rviz_filename = 'view_vive.rviz'
+    rviz_config = os.path.join(pkg_share, 'rviz', rviz_filename)
     vive_params_file = os.path.join(pkg_share, 'config', 'vive.params.yaml')
+
+    # --- DEBUG LOGGING ---
+    print(f"\n[DEBUG] Package Share Path: {pkg_share}")
+    print(f"[DEBUG] Looking for RViz file at: {rviz_config}")
+
+    if os.path.exists(rviz_config):
+        print(f"[DEBUG] ✅ File FOUND.\n")
+    else:
+        print(f"[DEBUG] ❌ File NOT FOUND.")
+        print(f"[DEBUG] Contents of {os.path.join(pkg_share, 'rviz')}:")
+        try:
+            print(os.listdir(os.path.join(pkg_share, 'rviz')))
+        except FileNotFoundError:
+            print("   (The 'rviz' directory itself was not found in share. Check setup.py data_files!)")
+        print("\n")
+    # ---------------------
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -37,7 +55,7 @@ def generate_launch_description():
             description='Serial number for the tracking reference (base station)'
         ),
 
-        # # --- LEFT HAND DRIVER ---
+        # --- LEFT HAND DRIVER ---
         Node(
             package='ros2_vive_controller',
             executable='vive_node',
@@ -52,7 +70,7 @@ def generate_launch_description():
             ]
         ),
 
-        # --- RIGHT HAND DRIVER (delayed to avoid OpenVR IPC conflict) ---
+        # --- RIGHT HAND DRIVER ---
         TimerAction(period=3.0, actions=[
             Node(
                 package='ros2_vive_controller',
@@ -76,7 +94,6 @@ def generate_launch_description():
             executable='rviz2',
             name='rviz2',
             condition=IfCondition(LaunchConfiguration('rviz')),
-            arguments=[
-                '-d', rviz_config] if os.path.exists(rviz_config) else []
+            arguments=['-d', rviz_config]
         )
     ])
