@@ -53,7 +53,7 @@ def generate_launch_description():
         ),
 
         # --- RIGHT HAND DRIVER (delayed to avoid OpenVR IPC conflict) ---
-        TimerAction(period=2.0, actions=[
+        TimerAction(period=3.0, actions=[
             Node(
                 package='ros2_vive_controller',
                 executable='vive_node',
