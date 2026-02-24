@@ -26,19 +26,19 @@ def generate_launch_description():
 
     reference_frame_arg = DeclareLaunchArgument(
         'reference_frame',
-        default_value='base_link',
+        default_value='ci/base_link',
         description='Reference frame for transform lookup'
     )
 
     target_frame_left_arg = DeclareLaunchArgument(
         'target_frame_left',
-        default_value='gripper_left_grasping_frame',
+        default_value='ci/gripper_left_grasping_frame',
         description='Target frame for left controller'
     )
 
     target_frame_right_arg = DeclareLaunchArgument(
         'target_frame_right',
-        default_value='gripper_right_grasping_frame',
+        default_value='ci/gripper_right_grasping_frame',
         description='Target frame for right controller'
     )
 

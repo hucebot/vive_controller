@@ -38,7 +38,7 @@ class ViveTracker(Node):
         self.pitch_publisher = self.create_publisher(Float64, '/gstreamer_service/tilt', 10)
 
         self.initial_position = None
-        self.initial_orientation = None 
+        self.initial_orientation = None
 
         self.timer = self.create_timer(0.01, self.timer_callback)
 
