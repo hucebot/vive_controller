@@ -63,12 +63,14 @@ def generate_launch_description():
 
             # --- MANUAL BUTTON TOPIC MAPPING (LEFT) ---
             'trigger_topic': '/vive/left/trigger',
-            'trackpad_x_topic': '/vive/left/trackpad_x',
+            # 'trackpad_x_topic': '/vive/left/trackpad_x',
+            'trackpad_x_topic': '/g1pilot/left_hand/dx3/action',
             'trackpad_y_topic': '/vive/left/trackpad_y',
             'grip_topic': '/vive/left/grip',
-            'menu_topic': '/g1pilot/left_hand/dx3/action',
+            'menu_topic': '/vive/left/menu',
             'trackpad_touched_topic': '/vive/left/trackpad_touched',
             'trackpad_pressed_topic': '/vive/left/trackpad_pressed',
+            'trackpad_pressed_required' : 'true'  # Only publish when trackpad is pressed
         }]
     )
 
@@ -88,12 +90,14 @@ def generate_launch_description():
 
             # --- MANUAL BUTTON TOPIC MAPPING (RIGHT) ---
             'trigger_topic': '/vive/right/trigger',
-            'trackpad_x_topic': '/vive/right/trackpad_x',
+            # 'trackpad_x_topic': '/vive/right/trackpad_x',
             'trackpad_y_topic': '/vive/right/trackpad_y',
+            'trackpad_x_topic': '/g1pilot/right_hand/dx3/action',
             'grip_topic': '/vive/right/grip',
-            'menu_topic': '/g1pilot/right_hand/dx3/action',
+            'menu_topic': '/vive/right/menu',
             'trackpad_touched_topic': '/vive/right/trackpad_touched',
             'trackpad_pressed_topic': '/vive/right/trackpad_pressed',
+            'trackpad_pressed_required' : 'true'  # 
         }]
     )
 
