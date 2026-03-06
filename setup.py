@@ -37,6 +37,7 @@ setup(
             'calibration_node = ros2_vive_controller.calibration_node:main',
             # The Teleop Bridge (Filename: teleop_bridge_node.py)
             'teleop_bridge_node = ros2_vive_controller.teleop_bridge_node:main',
+            'tracker_node = ros2_vive_controller.tracker_node:main',
         ],
     },
 )
