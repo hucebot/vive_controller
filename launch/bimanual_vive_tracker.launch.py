@@ -1,7 +1,7 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -28,48 +28,22 @@ def generate_launch_description():
                 default_value="",
                 description="Serial of lighthouse to use as reference frame",
             ),
-            # Left tracker
             Node(
                 package="ros2_vive_controller",
-                executable="tracker_node",
-                name="tracker_left",
-                namespace="vive_tracker/left",
+                executable="bimanual_tracker_node",
+                name="bimanual_vive_tracker",
                 output="screen",
                 parameters=[
                     params_file,
                     {
-                        "name": "left",
-                        "serial": LaunchConfiguration("serial_left"),
+                        "serial_left": LaunchConfiguration("serial_left"),
+                        "serial_right": LaunchConfiguration("serial_right"),
                         "reference_lighthouse_serial": LaunchConfiguration(
                             "reference_lighthouse_serial"
                         ),
                     },
                 ],
             ),
-            # Right tracker (delayed 3s to avoid OpenVR conflict)
-            TimerAction(
-                period=3.0,
-                actions=[
-                    Node(
-                        package="ros2_vive_controller",
-                        executable="tracker_node",
-                        name="tracker_right",
-                        namespace="vive_tracker/right",
-                        output="screen",
-                        parameters=[
-                            params_file,
-                            {
-                                "name": "right",
-                                "serial": LaunchConfiguration("serial_right"),
-                                "reference_lighthouse_serial": LaunchConfiguration(
-                                    "reference_lighthouse_serial"
-                                ),
-                            },
-                        ],
-                    ),
-                ],
-            ),
-            # RViz
             Node(
                 package="rviz2",
                 executable="rviz2",

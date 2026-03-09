@@ -36,6 +36,7 @@ services:
       - ./rviz:/ros2_ws/src/ros2_vive_controller/rviz
       - ./assets:/ros2_ws/src/ros2_vive_controller/assets
       - ./setup.py:/ros2_ws/src/ros2_vive_controller/setup.py
+      - ./.ci/entrypoint.sh:/entrypoint.sh
     working_dir: /ros2_ws
     entrypoint: ["/entrypoint.sh"]
     command: ["/bin/bash"]
