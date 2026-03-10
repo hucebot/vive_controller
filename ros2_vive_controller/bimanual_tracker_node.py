@@ -11,7 +11,11 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from OneEuroFilter import OneEuroFilter
-from ros2_vive_controller.openvr_class.openvr_class import triad_openvr
+from ros2_vive_controller.openvr_class.openvr_class import (
+    triad_openvr,
+    convert_to_quaternion,
+    get_pose,
+)
 
 
 def pose_to_matrix(pose):
@@ -109,17 +113,24 @@ class BimanualViveTrackerNode(Node):
 
     def _compute_lighthouse_inverse(self):
         self._lighthouse_retry_count += 1
+
         for key, dev in self.vr.devices.items():
             if dev.get_serial() == self.reference_lighthouse_serial:
-                pose = dev.get_pose_quaternion()
-                if pose is None:
-                    if (
-                        self._lighthouse_retry_count % 100 == 1
-                    ):  # Log every ~5s (100 * 50ms)
+                # Read raw mDeviceToAbsoluteTracking directly — bypasses bPoseIsValid
+                # which is always False for Lighthouse 2.0, even though the
+                # calibrated position is present in the matrix.
+                poses = get_pose(self.vr.vr)
+                raw_mat = poses[dev.index].mDeviceToAbsoluteTracking
+                # Check rotation diagonal — an uninitialized matrix is all zeros,
+                # while any valid rotation has non-zero diagonal elements.
+                # Translation CAN be (0,0,0) when the lighthouse is at the origin.
+                if raw_mat[0][0] == 0.0 and raw_mat[1][1] == 0.0 and raw_mat[2][2] == 0.0:
+                    if self._lighthouse_retry_count % 100 == 1:
                         self.get_logger().warn(
-                            f"Reference lighthouse '{self.reference_lighthouse_serial}' found but pose not valid yet (retry {self._lighthouse_retry_count})"
+                            f"Reference lighthouse '{self.reference_lighthouse_serial}' found but matrix uninitialized (retry {self._lighthouse_retry_count})"
                         )
                     return
+                pose = convert_to_quaternion(raw_mat)
                 self.T_lighthouse_inv = np.linalg.inv(pose_to_matrix(pose))
                 if self.frame_id == "vive_world":
                     self.frame_id = self.reference_lighthouse_serial
@@ -127,7 +138,7 @@ class BimanualViveTrackerNode(Node):
                     f"Using lighthouse {self.reference_lighthouse_serial} as reference frame (frame_id: {self.frame_id})"
                 )
                 return
-        if self._lighthouse_retry_count % 100 == 1:  # Log every ~5s
+        if self._lighthouse_retry_count % 100 == 1:
             self.get_logger().warn(
                 f"Waiting for reference lighthouse '{self.reference_lighthouse_serial}'... "
                 f"Available: {[(k, v.get_serial()) for k, v in self.vr.devices.items() if 'tracking_reference' in k]}"
@@ -200,8 +211,14 @@ class BimanualViveTrackerNode(Node):
             )
             self._ready_logged = True
 
-        tracker_left = self.vr.devices[self.device_left]
-        tracker_right = self.vr.devices[self.device_right]
+        try:
+            tracker_left = self.vr.devices[self.device_left]
+            tracker_right = self.vr.devices[self.device_right]
+        except KeyError:
+            self.get_logger().warn("Tracker device disappeared, re-scanning...")
+            self.device_left = self._find_device_by_serial(self.serial_left)
+            self.device_right = self._find_device_by_serial(self.serial_right)
+            return
 
         pose_left = tracker_left.get_pose_quaternion()
         pose_right = tracker_right.get_pose_quaternion()

@@ -6,7 +6,11 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from OneEuroFilter import OneEuroFilter
-from ros2_vive_controller.openvr_class.openvr_class import triad_openvr
+from ros2_vive_controller.openvr_class.openvr_class import (
+    triad_openvr,
+    convert_to_quaternion,
+    get_pose,
+)
 
 
 def pose_to_matrix(pose):
@@ -92,17 +96,27 @@ class ViveTrackerNode(Node):
         return None
 
     def _compute_lighthouse_inverse(self):
-        """Find reference lighthouse and cache its inverse transform."""
+        """Find reference lighthouse and cache its inverse transform.
+
+        Reads mDeviceToAbsoluteTracking directly (bypassing bPoseIsValid)
+        because Lighthouse 2.0 base stations have bPoseIsValid=False
+        even though the calibrated position is present in the matrix.
+        """
         for key, dev in self.vr.devices.items():
             if dev.get_serial() == self.reference_lighthouse_serial:
-                pose = dev.get_pose_quaternion()
-                if pose is None:
+                poses = get_pose(self.vr.vr)
+                raw_mat = poses[dev.index].mDeviceToAbsoluteTracking
+                # Check rotation diagonal — an uninitialized matrix is all zeros,
+                # while any valid rotation has non-zero diagonal elements.
+                # Translation CAN be (0,0,0) when the lighthouse is at the origin.
+                if raw_mat[0][0] == 0.0 and raw_mat[1][1] == 0.0 and raw_mat[2][2] == 0.0:
                     if not self._lighthouse_warned:
                         self.get_logger().warn(
-                            f"Reference lighthouse '{self.reference_lighthouse_serial}' found but pose not available yet"
+                            f"Reference lighthouse '{self.reference_lighthouse_serial}' found but matrix uninitialized"
                         )
                         self._lighthouse_warned = True
                     return
+                pose = convert_to_quaternion(raw_mat)
                 self.T_lighthouse_inv = np.linalg.inv(pose_to_matrix(pose))
                 if self.frame_id == "vive_world":
                     self.frame_id = self.reference_lighthouse_serial

@@ -1,7 +1,8 @@
 services:
   vive_controller:
     container_name: ros2_vive_controller
-    image: ${REGISTRY:-registry.gitlab.inria.fr/eurobin-horizon/code/ros2-vive-controller}/vive-controller:${TAG:-latest}
+    # image: ${REGISTRY:-registry.gitlab.inria.fr/eurobin-horizon/code/ros2-vive-controller}/vive-controller:${TAG:-latest}
+    image: vive-controller-from-bleu-base-jazzy:2026.03am2_tracker_node
     build:
       context: .
       dockerfile: .ci/Dockerfile

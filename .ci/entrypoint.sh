@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-source "/opt/ros/humble/setup.bash"
+source "/opt/ros/${ROS_DISTRO:-jazzy}/setup.bash"
 
 # Rebuild ros2_vive_controller if setup.py has changed (e.g. new entry points)
 SETUP_FILE="/ros2_ws/src/ros2_vive_controller/setup.py"
