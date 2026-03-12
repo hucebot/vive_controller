@@ -1,0 +1,14 @@
+{
+  "config": [
+    "/home/steam/Steam/steamapps/common/SteamVR/resources/settings"
+  ],
+  "external_drivers": null,
+  "jsonid": "vrpathreg",
+  "log": [
+    "/home/steam/Steam/steamapps/common/SteamVR/logs"
+  ],
+  "runtime": [
+    "/home/steam/Steam/steamapps/common/SteamVR"
+  ],
+  "version": 1
+}
