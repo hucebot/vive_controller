@@ -1,0 +1,8 @@
+/vive_tracker/**:
+  ros__parameters:
+    frame_id: vive_world
+    reference_lighthouse_serial: ''
+    filter:
+      mincutoff: 1.0
+      beta: 0.01
+      dcutoff: 1.0

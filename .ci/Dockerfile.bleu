@@ -1,0 +1,53 @@
+# Pull SteamVR files from the old working image
+FROM registry.gitlab.inria.fr/eurobin-horizon/code/ros2-vive-controller/vive-controller:latest AS steamvr-source
+
+FROM registry.gitlab.com/bleurobotics/code/bleu_integration/bleu-base:jazzy-cuda-26-02
+
+# ---- SteamCMD (requires i386) ----
+RUN add-apt-repository -y multiverse && \
+    dpkg --add-architecture i386 && \
+    apt-get update && \
+    echo "steam steam/question select I AGREE" | debconf-set-selections && \
+    apt-get install -y steamcmd lib32gcc-s1 && \
+    ln -sf /usr/games/steamcmd /usr/bin/steamcmd && \
+    rm -rf /var/lib/apt/lists/*
+
+# ---- Python dependencies (not already in bleu-base) ----
+# Remove debian-installed python packages that lack RECORD files (pip can't upgrade them)
+RUN dpkg --purge --force-depends python3-numpy python3-scipy python3-opencv python3-matplotlib python3-contourpy && \
+    pip install --break-system-packages --no-cache-dir "numpy<2" "scipy>=1.11,<2"
+
+RUN pip install --break-system-packages --no-cache-dir \
+    openvr OneEuroFilter "transformations<2025" \
+    opencv-contrib-python pyserial pyside6 moderngl moderngl-window \
+    pyglm glfw pillow pygame pynput pyrr urdfpy trimesh \
+    ping3 mss "networkx>=2.6"
+
+# ---- Fix broken apt deps after dpkg purge, then install UI / OpenVR dependencies ----
+RUN apt-get update && apt --fix-broken install -y && \
+    apt-get install -y --no-install-recommends \
+    libpipewire-0.3-0 libpipewire-0.3-modules libspa-0.2-modules pipewire \
+    libnss3 libatk1.0-0 libgtk-3-0 dbus-x11 terminator \
+    libxkbcommon0 libxrandr2 libxinerama1 libxcursor1 libxi6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---- Copy SteamVR from the old working humble image ----
+RUN useradd -m steam && \
+    chown -R steam:steam /home/steam
+COPY --from=steamvr-source /home/steam/Steam/steamapps/common/SteamVR /home/steam/Steam/steamapps/common/SteamVR
+COPY --from=steamvr-source /home/steam/.local/share/Steam/steamcmd /home/steam/.local/share/Steam/steamcmd
+
+# ---- Entrypoint ----
+COPY .ci/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# ---- Copy source and build ----
+COPY . /ros2_ws/src/ros2_vive_controller
+WORKDIR /ros2_ws
+
+RUN mkdir -p /ros2_ws/src/ros2_vive_controller/resource && \
+    touch /ros2_ws/src/ros2_vive_controller/resource/ros2_vive_controller
+
+RUN . /opt/ros/${ROS_DISTRO}/setup.bash && colcon build --symlink-install
+
+CMD ["bash"]

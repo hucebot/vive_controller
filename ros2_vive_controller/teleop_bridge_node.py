@@ -20,6 +20,7 @@ class TeleopBridgeNode(Node):
         self.declare_parameter('target_frame', 'base_link')
         self.declare_parameter('reference_frame', 'world')
         self.declare_parameter('rotation_offset', [0.0, 0.0, 0.0]) # [R, P, Y] in degrees
+        self.declare_parameter('trackpad_pressed_required', 'false')
 
         self.button_keys = [
             'trigger', 'trackpad_x', 'trackpad_y',
@@ -51,7 +52,7 @@ class TeleopBridgeNode(Node):
         self.prev_button_state = None
         self.activated = False
         self.last_output_msg = None
-
+        self.trackpad_pressed_required = self.get_parameter('trackpad_pressed_required').value.lower() == 'true'
         # --- 4. Subscribers ---
         self.pose_sub = self.create_subscription(
             PoseStamped, self.get_parameter('pose_topic').value, self.pose_callback, 10)
@@ -73,7 +74,10 @@ class TeleopBridgeNode(Node):
         timestamp = self.get_clock().now().to_msg()
         for key, pub in self.button_pubs.items():
             if key in button_data:
-                val = float(button_data[key])
+                if self.trackpad_pressed_required and button_data.get('trackpad_pressed', 0.0) < 0.5:
+                    val=0.0
+                else:
+                    val = float(button_data[key])
 
                 # Create PointStamped message
                 p_msg = PointStamped()

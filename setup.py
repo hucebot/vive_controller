@@ -13,10 +13,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
 
-        # 1. Install Launch Files
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
-
-        # 2. Install Config Files (YAML)
+        # 1. Install Config Files (YAML)
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
 
         # 3. Install RViz Files
@@ -37,6 +34,8 @@ setup(
             'calibration_node = ros2_vive_controller.calibration_node:main',
             # The Teleop Bridge (Filename: teleop_bridge_node.py)
             'teleop_bridge_node = ros2_vive_controller.teleop_bridge_node:main',
+            'tracker_3_0_node = ros2_vive_controller.tracker_3_0_node:main',
+            'bimanual_tracker_3_0_node = ros2_vive_controller.bimanual_tracker_3_0_node:main',
         ],
     },
 )
