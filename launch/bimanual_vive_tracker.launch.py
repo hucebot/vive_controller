@@ -40,7 +40,7 @@ def generate_launch_description():
             ),
             Node(
                 package="ros2_vive_controller",
-                executable="bimanual_tracker_node",
+                executable="bimanual_tracker_3_0_node",
                 name="bimanual_vive_tracker",
                 output="screen",
                 parameters=[

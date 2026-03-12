@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Base class for Vive tracker nodes.
+
+Provides shared OpenVR infrastructure: device discovery, lighthouse reference
+frame calibration, OneEuroFilter initialization, and watchdog polling.
+"""
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
@@ -28,66 +33,54 @@ def matrix_to_pose(T):
     return [pos[0], pos[1], pos[2], quat[0], quat[1], quat[2], quat[3]]
 
 
-class ViveTrackerNode(Node):
-    def __init__(self):
-        super().__init__("vive_tracker")
+def _parse_offset(val):
+    """Parse a hand offset parameter to a 4x4 homogeneous matrix.
 
+    Accepts a list of 7 floats [x, y, z, qx, qy, qz, qw] or a string
+    representation of that list (as produced by ROS2 launch arguments).
+    """
+    if isinstance(val, str):
+        import ast
+        val = ast.literal_eval(val)
+    return pose_to_matrix(val)
+
+
+class BaseViveTracker3_0Node(Node):
+    """Base class for Vive tracker nodes.
+
+    Subclasses must:
+      1. Call self._declare_common_parameters() early in __init__
+      2. Initialize self.vr = triad_openvr() before calling self._init_lighthouse()
+      3. Call self._init_lighthouse() after vr is ready
+    """
+
+    def _declare_common_parameters(self):
         self.declare_parameters(
             namespace="",
             parameters=[
-                ("name", "tracker"),
-                ("serial", ""),
-                ("frame_id", "vive_world"),
                 ("reference_lighthouse_serial", ""),
+                ("frame_id", "vive_world"),
                 ("filter.mincutoff", 1.0),
                 ("filter.beta", 0.007),
                 ("filter.dcutoff", 1.0),
+                ("hand_offset", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]),
             ],
         )
 
-        self.tracker_name = self.get_parameter("name").value
-        self.serial = self.get_parameter("serial").value
-        self.frame_id = self.get_parameter("frame_id").value
+    def _init_hand_offset(self):
+        """Parse hand_offset parameter into self.T_tracker_to_hand (4x4 matrix)."""
+        self.T_tracker_to_hand = _parse_offset(self.get_parameter("hand_offset").value)
+
+    def _init_lighthouse(self):
+        """Initialize lighthouse state. Call after vr and parameters are set up."""
         self.reference_lighthouse_serial = self.get_parameter(
             "reference_lighthouse_serial"
         ).value
-
-        # OpenVR setup
-        self.vr = triad_openvr()
-        self.vr.print_discovered_objects()
-        self.device_name = self._find_device_by_serial(self.serial)
-
-        if not self.device_name:
-            self.get_logger().error(
-                f"Could not find tracker with serial '{self.serial}'. "
-                f"Available devices: {[(k, v.get_serial()) for k, v in self.vr.devices.items()]}"
-            )
-        else:
-            self.get_logger().info(
-                f"Connected to tracker '{self.tracker_name}': {self.serial} (device: {self.device_name})"
-            )
-
-        # Lighthouse reference frame transform
+        self.frame_id = self.get_parameter("frame_id").value
         self.T_lighthouse_inv = None
-        self._lighthouse_warned = False
+        self._lighthouse_retry_count = 0
         if self.reference_lighthouse_serial:
             self._compute_lighthouse_inverse()
-
-        # Publisher
-        self.pub_pose = self.create_publisher(
-            PoseStamped, f"/vive_{self.tracker_name}/pose", 10
-        )
-
-        # Filters
-        self.filters = self._init_filters()
-
-        # Tracking state
-        self.tracking_active = False
-        self.haptic_frames_remaining = 0
-
-        # Timers
-        self.create_timer(0.02, self.update)  # 50Hz
-        self.create_timer(0.05, self.watchdog)  # 20Hz
 
     def _find_device_by_serial(self, target_serial):
         for key, dev in self.vr.devices.items():
@@ -102,6 +95,8 @@ class ViveTrackerNode(Node):
         because Lighthouse 2.0 base stations have bPoseIsValid=False
         even though the calibrated position is present in the matrix.
         """
+        self._lighthouse_retry_count += 1
+
         for key, dev in self.vr.devices.items():
             if dev.get_serial() == self.reference_lighthouse_serial:
                 poses = get_pose(self.vr.vr)
@@ -110,26 +105,27 @@ class ViveTrackerNode(Node):
                 # while any valid rotation has non-zero diagonal elements.
                 # Translation CAN be (0,0,0) when the lighthouse is at the origin.
                 if raw_mat[0][0] == 0.0 and raw_mat[1][1] == 0.0 and raw_mat[2][2] == 0.0:
-                    if not self._lighthouse_warned:
+                    if self._lighthouse_retry_count % 100 == 1:
                         self.get_logger().warn(
-                            f"Reference lighthouse '{self.reference_lighthouse_serial}' found but matrix uninitialized"
+                            f"Reference lighthouse '{self.reference_lighthouse_serial}' "
+                            f"found but matrix uninitialized (retry {self._lighthouse_retry_count})"
                         )
-                        self._lighthouse_warned = True
                     return
                 pose = convert_to_quaternion(raw_mat)
                 self.T_lighthouse_inv = np.linalg.inv(pose_to_matrix(pose))
                 if self.frame_id == "vive_world":
                     self.frame_id = self.reference_lighthouse_serial
                 self.get_logger().info(
-                    f"Using lighthouse {self.reference_lighthouse_serial} as reference frame (frame_id: {self.frame_id})"
+                    f"Using lighthouse {self.reference_lighthouse_serial} as reference frame "
+                    f"(frame_id: {self.frame_id})"
                 )
                 return
-        if not self._lighthouse_warned:
+
+        if self._lighthouse_retry_count % 100 == 1:
             self.get_logger().warn(
                 f"Waiting for reference lighthouse '{self.reference_lighthouse_serial}'... "
                 f"Available: {[(k, v.get_serial()) for k, v in self.vr.devices.items() if 'tracking_reference' in k]}"
             )
-            self._lighthouse_warned = True
 
     def _init_filters(self):
         params = {
@@ -140,46 +136,8 @@ class ViveTrackerNode(Node):
         }
         return {axis: OneEuroFilter(**params) for axis in ["x", "y", "z"]}
 
-    def watchdog(self):
-        self.vr.poll_vr_events()
-        # Retry finding tracker if not yet connected
-        if not self.device_name:
-            self.device_name = self._find_device_by_serial(self.serial)
-            if self.device_name:
-                self.get_logger().info(
-                    f"Connected to tracker '{self.tracker_name}': {self.serial} (device: {self.device_name})"
-                )
-        # Retry finding reference lighthouse
-        if self.reference_lighthouse_serial and self.T_lighthouse_inv is None:
-            self._compute_lighthouse_inverse()
-
-    def update(self):
-        if not self.device_name:
-            return
-
-        # Don't publish until reference frame is established
-        if self.reference_lighthouse_serial and self.T_lighthouse_inv is None:
-            return
-
-        tracker = self.vr.devices[self.device_name]
-        pose = tracker.get_pose_quaternion()
-
-        if pose is None:
-            if self.tracking_active:
-                self.get_logger().warn(f"Tracking LOST for '{self.tracker_name}'")
-                self.tracking_active = False
-            return
-
-        if not self.tracking_active:
-            self.get_logger().info(f"Tracking ACQUIRED for '{self.tracker_name}'")
-            self.tracking_active = True
-            self.haptic_frames_remaining = 50  # Vibrate ~1 second
-
-        # Haptic feedback on tracking acquisition
-        if self.haptic_frames_remaining > 0:
-            tracker.trigger_haptic_pulse(3000)
-            self.haptic_frames_remaining -= 1
-
+    def _publish_tracker(self, publisher, pub_hand, T_tracker_to_hand, filters, pose):
+        """Transform, filter, and publish a single tracker's pose + hand pose."""
         # Transform to lighthouse reference frame
         if self.T_lighthouse_inv is not None:
             T_tracker = pose_to_matrix(pose)
@@ -187,31 +145,41 @@ class ViveTrackerNode(Node):
             pose = matrix_to_pose(T_rel)
 
         t = self.get_clock().now().nanoseconds / 1e9
+        stamp = self.get_clock().now().to_msg()
 
         msg = PoseStamped()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.stamp = stamp
         msg.header.frame_id = self.frame_id
-        msg.pose.position.x = self.filters["x"](pose[0], t)
-        msg.pose.position.y = self.filters["y"](pose[1], t)
-        msg.pose.position.z = self.filters["z"](pose[2], t)
+        msg.pose.position.x = filters["x"](pose[0], t)
+        msg.pose.position.y = filters["y"](pose[1], t)
+        msg.pose.position.z = filters["z"](pose[2], t)
         msg.pose.orientation.x = pose[3]
         msg.pose.orientation.y = pose[4]
         msg.pose.orientation.z = pose[5]
         msg.pose.orientation.w = pose[6]
+        publisher.publish(msg)
 
-        self.pub_pose.publish(msg)
+        # Hand pose: apply static offset T_tracker_to_hand
+        T_world_to_tracker = pose_to_matrix(
+            [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z,
+             msg.pose.orientation.x, msg.pose.orientation.y,
+             msg.pose.orientation.z, msg.pose.orientation.w]
+        )
+        hand_pose = matrix_to_pose(T_world_to_tracker @ T_tracker_to_hand)
+        msg_hand = PoseStamped()
+        msg_hand.header.stamp = stamp
+        msg_hand.header.frame_id = self.frame_id
+        msg_hand.pose.position.x = hand_pose[0]
+        msg_hand.pose.position.y = hand_pose[1]
+        msg_hand.pose.position.z = hand_pose[2]
+        msg_hand.pose.orientation.x = hand_pose[3]
+        msg_hand.pose.orientation.y = hand_pose[4]
+        msg_hand.pose.orientation.z = hand_pose[5]
+        msg_hand.pose.orientation.w = hand_pose[6]
+        pub_hand.publish(msg_hand)
 
-
-def main():
-    rclpy.init()
-    node = ViveTrackerNode()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    node.destroy_node()
-    rclpy.shutdown()
-
-
-if __name__ == "__main__":
-    main()
+    def watchdog(self):
+        """Base watchdog: poll VR events and retry lighthouse calibration."""
+        self.vr.poll_vr_events()
+        if self.reference_lighthouse_serial and self.T_lighthouse_inv is None:
+            self._compute_lighthouse_inverse()

@@ -28,10 +28,20 @@ def generate_launch_description():
                 default_value="",
                 description="Serial of lighthouse to use as reference frame",
             ),
+            DeclareLaunchArgument(
+                "hand_offset_left",
+                default_value="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]",
+                description="Static offset from left tracker to hand center [x,y,z,qx,qy,qz,qw]",
+            ),
+            DeclareLaunchArgument(
+                "hand_offset_right",
+                default_value="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]",
+                description="Static offset from right tracker to hand center [x,y,z,qx,qy,qz,qw]",
+            ),
             # Left tracker
             Node(
                 package="ros2_vive_controller",
-                executable="tracker_node",
+                executable="tracker_3_0_node",
                 name="tracker_left",
                 namespace="vive_tracker/left",
                 output="screen",
@@ -43,6 +53,7 @@ def generate_launch_description():
                         "reference_lighthouse_serial": LaunchConfiguration(
                             "reference_lighthouse_serial"
                         ),
+                        "hand_offset": LaunchConfiguration("hand_offset_left"),
                     },
                 ],
             ),
@@ -52,7 +63,7 @@ def generate_launch_description():
                 actions=[
                     Node(
                         package="ros2_vive_controller",
-                        executable="tracker_node",
+                        executable="tracker_3_0_node",
                         name="tracker_right",
                         namespace="vive_tracker/right",
                         output="screen",
@@ -64,6 +75,7 @@ def generate_launch_description():
                                 "reference_lighthouse_serial": LaunchConfiguration(
                                     "reference_lighthouse_serial"
                                 ),
+                                "hand_offset": LaunchConfiguration("hand_offset_right"),
                             },
                         ],
                     ),
