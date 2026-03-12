@@ -45,7 +45,7 @@ def generate_launch_description():
 
         DeclareLaunchArgument(
             'serial_right',
-            default_value='LHR-4BB3817E',
+            default_value='LHR-9ABF6D66',
             description='Serial number for the right controller'
         ),
 

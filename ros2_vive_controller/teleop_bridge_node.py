@@ -4,6 +4,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, PointStamped  # Added PointStamped
 from sensor_msgs.msg import JointState
 from tf2_ros import Buffer, TransformListener
+from scipy.spatial.transform import Rotation as R
 from rclpy.duration import Duration
 import numpy as np
 
@@ -18,6 +19,7 @@ class TeleopBridgeNode(Node):
         self.declare_parameter('publish_frequency', 30.0)
         self.declare_parameter('target_frame', 'base_link')
         self.declare_parameter('reference_frame', 'world')
+        self.declare_parameter('rotation_offset', [0.0, 0.0, 0.0]) # [R, P, Y] in degrees
 
         self.button_keys = [
             'trigger', 'trackpad_x', 'trackpad_y',
@@ -129,6 +131,7 @@ class TeleopBridgeNode(Node):
         output_msg = None
 
         if self.latest_pose and self.activated:
+            # --- 1. Position Delta Calculation ---
             delta_x = self.latest_pose.pose.position.x - self.joy_translation.x
             delta_y = self.latest_pose.pose.position.y - self.joy_translation.y
             delta_z = self.latest_pose.pose.position.z - self.joy_translation.z
@@ -141,7 +144,30 @@ class TeleopBridgeNode(Node):
             output_msg.pose.position.x = self.ee_translation.x + delta_x
             output_msg.pose.position.y = self.ee_translation.y + delta_y
             output_msg.pose.position.z = self.ee_translation.z + delta_z
-            output_msg.pose.orientation = self.latest_pose.pose.orientation
+
+            # --- 2. Orientation + Rotation Offset Logic ---
+            q = self.latest_pose.pose.orientation
+
+            # Get the offset from parameters (Default is [0,0,0])
+            offset_euler = self.get_parameter('rotation_offset').value
+
+            # If offset is identity, just copy; otherwise, do the math
+            if offset_euler == [0.0, 0.0, 0.0]:
+                output_msg.pose.orientation = q
+            else:
+                # Convert current orientation and offset to Scipy Rotation objects
+                curr_rot = R.from_quat([q.x, q.y, q.z, q.w])
+                off_rot = R.from_euler('xyz', offset_euler, degrees=True)
+
+                # Post-multiply (Local Frame Rotation)
+                # This ensures the flip happens relative to the controller's own axes
+                final_rot = curr_rot * off_rot
+                new_q = final_rot.as_quat() # returns [x, y, z, w]
+
+                output_msg.pose.orientation.x = new_q[0]
+                output_msg.pose.orientation.y = new_q[1]
+                output_msg.pose.orientation.z = new_q[2]
+                output_msg.pose.orientation.w = new_q[3]
 
             self.last_output_msg = output_msg
         else:

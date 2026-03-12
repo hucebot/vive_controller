@@ -5,7 +5,7 @@ import os
 import sys
 
 # Default Configuration
-DEFAULT_REGISTRY = "registry.gitlab.inria.fr/eurobin-horizon/code/ros2-vive-controller"
+DEFAULT_REGISTRY = "registry.gitlab.inria.fr/eurobin-horizon/code/vive_controller_tiago"
 IMAGE_NAME = "vive-controller"
 CONTAINER_NAME = "ros2_vive_controller"
 
@@ -31,7 +31,8 @@ def run_docker(args):
         "calibrate": "ros2 launch ros2_vive_controller calibration.launch.py",
         "teleop": "ros2 launch ros2_vive_controller vive_teleop.launch.py",
         "g1": "ros2 launch ros2_vive_controller g1_dual.launch.py",
-        "tiago": "ros2 launch ros2_vive_controller tiago_dual.launch.py"
+        "tiago": "ros2 launch ros2_vive_controller tiago_dual.launch.py",
+        "franka": "ros2 launch ros2_vive_controller franka_single.launch.py"
     }
 
     # Resolve command

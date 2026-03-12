@@ -26,78 +26,48 @@ def generate_launch_description():
 
     reference_frame_arg = DeclareLaunchArgument(
         'reference_frame',
-        default_value='ci/base_link',
+        default_value='panda_link0',
         description='Reference frame for transform lookup'
     )
 
-    target_frame_left_arg = DeclareLaunchArgument(
-        'target_frame_left',
-        default_value='ci/gripper_left_grasping_frame',
-        description='Target frame for left controller'
-    )
 
-    target_frame_right_arg = DeclareLaunchArgument(
-        'target_frame_right',
-        default_value='ci/gripper_right_grasping_frame',
-        description='Target frame for right controller'
-    )
-
-    # 4. Teleop bridge node - LEFT
-    teleop_bridge_left = Node(
-        package='ros2_vive_controller',
-        executable='teleop_bridge_node',
-        name='teleop_bridge_left',
-        output='screen',
-        parameters=[{
-            'pose_topic': '/vive/left/pose',
-            'button_state_topic': '/vive/left/joint_states',
-            'output_topic': '/vive/left/output_pose',
-            'publish_frequency': LaunchConfiguration('publish_frequency'),
-            'target_frame': LaunchConfiguration('target_frame_left'),
-            'reference_frame': LaunchConfiguration('reference_frame'),
-
-            # --- MANUAL BUTTON TOPIC MAPPING (LEFT) ---
-            'trigger_topic': '/vive/left/trigger',
-            'trackpad_x_topic': '/vive/left/trackpad_x',
-            'trackpad_y_topic': '/vive/left/trackpad_y',
-            'grip_topic': '/vive/left/grip',
-            'menu_topic': '/vive/left/gripper',
-            'trackpad_touched_topic': '/vive/left/trackpad_touched',
-            'trackpad_pressed_topic': '/vive/left/trackpad_pressed',
-        }]
+    target_frame_franka_tcp_arg = DeclareLaunchArgument(
+        'target_frame_franka_tcp',
+        default_value='panda_hand_tcp',
+        description='Target frame for Franka TCP controller'
     )
 
     # 5. Teleop bridge node - RIGHT
-    teleop_bridge_right = Node(
+    teleop_bridge_franka_tcp = Node(
         package='ros2_vive_controller',
         executable='teleop_bridge_node',
-        name='teleop_bridge_right',
+        name='teleop_bridge_franka_tcp',
         output='screen',
         parameters=[{
             'pose_topic': '/vive/right/pose',
             'button_state_topic': '/vive/right/joint_states',
-            'output_topic': '/vive/right/output_pose',
+            'output_topic': '/cartesian_impedance/equilibrium_pose',
             'publish_frequency': LaunchConfiguration('publish_frequency'),
-            'target_frame': LaunchConfiguration('target_frame_right'),
+            'target_frame': LaunchConfiguration('target_frame_franka_tcp'),
             'reference_frame': LaunchConfiguration('reference_frame'),
+
+            # --- ADD THE ROTATION OFFSET HERE ---
+            'rotation_offset': [180.0, 0.0, 0.0],
 
             # --- MANUAL BUTTON TOPIC MAPPING (RIGHT) ---
             'trigger_topic': '/vive/right/trigger',
             'trackpad_x_topic': '/vive/right/trackpad_x',
             'trackpad_y_topic': '/vive/right/trackpad_y',
-            'grip_topic': '/vive/right/grip',
-            'menu_topic': '/vive/right/gripper',
+            'grip_topic': '/panda_gripper/gripper_command',
+            'menu_topic': '/vive/right/menu',
             'trackpad_touched_topic': '/vive/right/trackpad_touched',
             'trackpad_pressed_topic': '/vive/right/trackpad_pressed',
         }]
     )
-
     return LaunchDescription([
         include_vive_teleop,
         publish_frequency_arg,
         reference_frame_arg,
-        target_frame_left_arg,
-        target_frame_right_arg,
-        teleop_bridge_left,
-        teleop_bridge_right,
+        target_frame_franka_tcp_arg,
+        teleop_bridge_franka_tcp,
     ])
