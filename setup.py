@@ -13,10 +13,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
 
-        # 1. Install Launch Files
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
-
-        # 2. Install Config Files (YAML)
+        # 1. Install Config Files (YAML)
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
 
         # 3. Install RViz Files
