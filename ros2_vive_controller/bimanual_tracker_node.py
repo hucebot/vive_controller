@@ -47,6 +47,8 @@ class BimanualViveTrackerNode(Node):
                 ("filter.mincutoff", 1.0),
                 ("filter.beta", 0.007),
                 ("filter.dcutoff", 1.0),
+                ("hand_offset_left",  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]),
+                ("hand_offset_right", [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]),
             ],
         )
 
@@ -84,9 +86,22 @@ class BimanualViveTrackerNode(Node):
         if self.reference_lighthouse_serial:
             self._compute_lighthouse_inverse()
 
+        # Hand offset transforms (T_tracker_to_hand): [x, y, z, qx, qy, qz, qw]
+        # Launch args arrive as strings — parse if needed
+        def _parse_offset(val):
+            if isinstance(val, str):
+                import ast
+                val = ast.literal_eval(val)
+            return pose_to_matrix(val)
+
+        self.T_tracker_to_hand_left  = _parse_offset(self.get_parameter("hand_offset_left").value)
+        self.T_tracker_to_hand_right = _parse_offset(self.get_parameter("hand_offset_right").value)
+
         # Publishers
         self.pub_left = self.create_publisher(PoseStamped, "/vive_left/pose", 10)
         self.pub_right = self.create_publisher(PoseStamped, "/vive_right/pose", 10)
+        self.pub_left_hand = self.create_publisher(PoseStamped, "/vive_left/pose_hand", 10)
+        self.pub_right_hand = self.create_publisher(PoseStamped, "/vive_right/pose_hand", 10)
 
         # Independent filters per hand
         self.filters_left = self._init_filters()
@@ -178,7 +193,7 @@ class BimanualViveTrackerNode(Node):
         if self.reference_lighthouse_serial and self.T_lighthouse_inv is None:
             self._compute_lighthouse_inverse()
 
-    def _publish_tracker(self, device_name, publisher, filters, pose, name):
+    def _publish_tracker(self, _device_name, publisher, pub_hand, T_tracker_to_hand, filters, pose, _name):
         """Transform, filter, and publish a single tracker's pose."""
         # Transform to lighthouse reference frame
         if self.T_lighthouse_inv is not None:
@@ -187,9 +202,10 @@ class BimanualViveTrackerNode(Node):
             pose = matrix_to_pose(T_rel)
 
         t = self.get_clock().now().nanoseconds / 1e9
+        stamp = self.get_clock().now().to_msg()
 
         msg = PoseStamped()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.stamp = stamp
         msg.header.frame_id = self.frame_id
         msg.pose.position.x = filters["x"](pose[0], t)
         msg.pose.position.y = filters["y"](pose[1], t)
@@ -198,8 +214,26 @@ class BimanualViveTrackerNode(Node):
         msg.pose.orientation.y = pose[4]
         msg.pose.orientation.z = pose[5]
         msg.pose.orientation.w = pose[6]
-
         publisher.publish(msg)
+
+        # Hand pose: apply static offset T_tracker_to_hand
+        T_world_to_tracker = pose_to_matrix(
+            [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z,
+             msg.pose.orientation.x, msg.pose.orientation.y,
+             msg.pose.orientation.z, msg.pose.orientation.w]
+        )
+        hand_pose = matrix_to_pose(T_world_to_tracker @ T_tracker_to_hand)
+        msg_hand = PoseStamped()
+        msg_hand.header.stamp = stamp
+        msg_hand.header.frame_id = self.frame_id
+        msg_hand.pose.position.x = hand_pose[0]
+        msg_hand.pose.position.y = hand_pose[1]
+        msg_hand.pose.position.z = hand_pose[2]
+        msg_hand.pose.orientation.x = hand_pose[3]
+        msg_hand.pose.orientation.y = hand_pose[4]
+        msg_hand.pose.orientation.z = hand_pose[5]
+        msg_hand.pose.orientation.w = hand_pose[6]
+        pub_hand.publish(msg_hand)
 
     def update(self):
         if not self._is_ready():
@@ -237,7 +271,8 @@ class BimanualViveTrackerNode(Node):
                 tracker_left.trigger_haptic_pulse(3000)
                 self.haptic_left -= 1
             self._publish_tracker(
-                self.device_left, self.pub_left, self.filters_left, pose_left, "left"
+                self.device_left, self.pub_left, self.pub_left_hand,
+                self.T_tracker_to_hand_left, self.filters_left, pose_left, "left"
             )
 
         # Right tracker
@@ -254,11 +289,8 @@ class BimanualViveTrackerNode(Node):
                 tracker_right.trigger_haptic_pulse(3000)
                 self.haptic_right -= 1
             self._publish_tracker(
-                self.device_right,
-                self.pub_right,
-                self.filters_right,
-                pose_right,
-                "right",
+                self.device_right, self.pub_right, self.pub_right_hand,
+                self.T_tracker_to_hand_right, self.filters_right, pose_right, "right"
             )
 
 

@@ -28,6 +28,16 @@ def generate_launch_description():
                 default_value="",
                 description="Serial of lighthouse to use as reference frame",
             ),
+            DeclareLaunchArgument(
+                "hand_offset_left",
+                default_value="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]",
+                description="Static offset from left tracker to hand center [x,y,z,qx,qy,qz,qw]",
+            ),
+            DeclareLaunchArgument(
+                "hand_offset_right",
+                default_value="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]",
+                description="Static offset from right tracker to hand center [x,y,z,qx,qy,qz,qw]",
+            ),
             Node(
                 package="ros2_vive_controller",
                 executable="bimanual_tracker_node",
@@ -41,6 +51,8 @@ def generate_launch_description():
                         "reference_lighthouse_serial": LaunchConfiguration(
                             "reference_lighthouse_serial"
                         ),
+                        "hand_offset_left": LaunchConfiguration("hand_offset_left"),
+                        "hand_offset_right": LaunchConfiguration("hand_offset_right"),
                     },
                 ],
             ),
