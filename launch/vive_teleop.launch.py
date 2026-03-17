@@ -2,7 +2,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, TimerAction
-from launch.conditions import IfCondition, UnlessCondition  # <--- Added UnlessCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -17,9 +17,10 @@ def generate_launch_description():
         DeclareLaunchArgument('rviz', default_value='true'),
         DeclareLaunchArgument('serial_left', default_value='LHR-97752221'),
         DeclareLaunchArgument('serial_right', default_value='LHR-9ABF6D66'),
-        DeclareLaunchArgument('tracking_reference', default_value='LHB-DFA5BD2C'),
 
-        # --- NEW: Added these to match the Franka launch expectations ---
+        # --- CHANGED: Name matches parent launch and node parameter ---
+        DeclareLaunchArgument('reference_lighthouse_serial', default_value=''),
+
         DeclareLaunchArgument(
             'only_right',
             default_value='false',
@@ -31,25 +32,24 @@ def generate_launch_description():
             description='Translation scaling factor.'
         ),
 
-        # --- LEFT HAND DRIVER (Modified) ---
+        # --- LEFT HAND DRIVER ---
         Node(
             package='ros2_vive_controller',
             executable='vive_node',
             name='driver_left',
             namespace='vive/left',
             output='screen',
-            # --- Added Condition ---
             condition=UnlessCondition(LaunchConfiguration('only_right')),
             parameters=[
                 vive_params_file,
                 {'side': 'left',
                  'linear_scale': LaunchConfiguration('linear_scale'),
                  'serial': LaunchConfiguration('serial_left'),
-                 'htc_vive.tracking_reference': LaunchConfiguration('tracking_reference')}
+                 'reference_lighthouse_serial': LaunchConfiguration('reference_lighthouse_serial')} # <--- UPDATED
             ]
         ),
 
-        # --- RIGHT HAND DRIVER (Modified) ---
+        # --- RIGHT HAND DRIVER ---
         TimerAction(period=3.0, actions=[
             Node(
                 package='ros2_vive_controller',
@@ -60,10 +60,9 @@ def generate_launch_description():
                 parameters=[
                     vive_params_file,
                     {'side': 'right',
-                     'linear_scale': LaunchConfiguration('linear_scale'), # <--- Added Parameter
+                     'linear_scale': LaunchConfiguration('linear_scale'),
                      'serial': LaunchConfiguration('serial_right'),
-                     'htc_vive.tracking_reference': LaunchConfiguration('tracking_reference')
-                     }
+                     'reference_lighthouse_serial': LaunchConfiguration('reference_lighthouse_serial')} # <--- UPDATED
                 ]
             ),
         ]),

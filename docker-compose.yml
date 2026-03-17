@@ -156,12 +156,15 @@ services:
     <<: *base_robot
     profiles: [franka]
     container_name: ros2_vive_franka
+    env_file:
+      - .env
     environment:
       <<: [*common_env, *ros_env]
       CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/franka_cyclonedds.xml
     command: >
       ros2 launch ros2_vive_controller franka_single.launch.py
       serial_right:=${SERIAL_RIGHT:-LHR-9ABF6D66}
+      reference_lighthouse_serial:=${REFERENCE_LIGHTHOUSE_SERIAL:-}
       only_right:=true
       linear_scale:=${LINEAR_SCALE:-2.0}
 
@@ -170,6 +173,7 @@ services:
     <<: *base_robot
     profiles: [tiago]
     container_name: ros2_vive_tiago
+    env_file: .env
     environment:
       <<: [*common_env, *ros_env]
       CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/tiago_cyclonedds.xml
