@@ -117,7 +117,7 @@ class vr_tracked_device():
             if sleep_time>0:
                 time.sleep(sleep_time)
         return rtn
-    
+
     def get_pose_quaternion(self, pose=None):
         if pose == None:
             pose = get_pose(self.vr)
@@ -203,7 +203,7 @@ class triad_openvr():
         self.device_index_map = {}
         poses = self.vr.getDeviceToAbsoluteTrackingPose(openvr.TrackingUniverseStanding, 0,
                                                                openvr.k_unMaxTrackedDeviceCount)
- 
+
         for i in range(openvr.k_unMaxTrackedDeviceCount):
             if poses[i].bDeviceIsConnected:
                 self.add_tracked_device(i)
@@ -247,7 +247,7 @@ class triad_openvr():
             if self.devices[dev_name].get_serial() == desired_serial:
                 device_with_desired_serial = dev_name
                 break
-        
+
         if device_with_desired_serial:
             references.remove(device_with_desired_serial)
             references.insert(0, device_with_desired_serial)
