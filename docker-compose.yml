@@ -4,7 +4,7 @@ services:
   bimanual_vive_tracker:
     profiles: [bimanual]
     container_name: ros2_bimanual_vive_tracker
-    image: vive-controller-from-bleu-base-jazzy:2026.03am2_tracker_node
+    image: registry.gitlab.com/bleurobotics/containers/vive_controller/vive-controller-from-bleu-base-jazzy:2026.03am2_tracker_node
     build:
       context: .
       dockerfile: .ci/Dockerfile
@@ -60,7 +60,7 @@ services:
   simple_vive_tracker:
     profiles: [simple]
     container_name: ros2_simple_vive_tracker
-    image: vive-controller-from-bleu-base-jazzy:2026.03am2_tracker_node
+    image: registry.gitlab.com/bleurobotics/containers/vive_controller/vive-controller-from-bleu-base-jazzy:2026.03am2_tracker_node
     build:
       context: .
       dockerfile: .ci/Dockerfile

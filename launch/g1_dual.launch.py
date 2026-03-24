@@ -14,9 +14,6 @@ def generate_launch_description():
     # 2. Define the Include action for hardware drivers
     include_vive_teleop = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(included_launch_path),
-<<<<<<< Updated upstream
-        launch_arguments={'rviz': 'true'}.items()
-=======
         launch_arguments={
             'rviz': 'false',
             # 'serial_left': 'LHR-21C1BC92',
@@ -24,7 +21,6 @@ def generate_launch_description():
            # 'serial_right': 'LHR-1BF07D86',
             'serial_left': 'LHR-4F5A9AC8',
         }.items()
->>>>>>> Stashed changes
     )
 
     # 3. General Launch Arguments
