@@ -14,9 +14,6 @@ def generate_launch_description():
     # 2. Define the Include action for hardware drivers
     include_vive_teleop = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(included_launch_path),
-<<<<<<< Updated upstream
-        launch_arguments={'rviz': 'true'}.items()
-=======
         launch_arguments={
             'rviz': 'false',
             # 'serial_left': 'LHR-21C1BC92',
@@ -24,13 +21,12 @@ def generate_launch_description():
            # 'serial_right': 'LHR-1BF07D86',
             'serial_left': 'LHR-4F5A9AC8',
         }.items()
->>>>>>> Stashed changes
     )
 
     # 3. General Launch Arguments
     publish_frequency_arg = DeclareLaunchArgument(
         'publish_frequency',
-        default_value='30.0',
+        default_value='-1.0',
         description='Publishing frequency in Hz.'
     )
 
@@ -42,13 +38,13 @@ def generate_launch_description():
 
     target_frame_left_arg = DeclareLaunchArgument(
         'target_frame_left',
-        default_value='ci/gripper_left_grasping_frame',
+        default_value='left_hand_point_contact',
         description='Target frame for left controller'
     )
 
     target_frame_right_arg = DeclareLaunchArgument(
         'target_frame_right',
-        default_value='ci/gripper_right_grasping_frame',
+        default_value='right_hand_point_contact',
         description='Target frame for right controller'
     )
 
@@ -61,7 +57,7 @@ def generate_launch_description():
         parameters=[{
             'pose_topic': '/vive/left/pose',
             'button_state_topic': '/vive/left/joint_states',
-            'output_topic': '/vive/left/output_pose',
+            'output_topic': '/g1pilot/left_hand/pose_ref',
             'publish_frequency': LaunchConfiguration('publish_frequency'),
             'target_frame': LaunchConfiguration('target_frame_left'),
             'reference_frame': LaunchConfiguration('reference_frame'),
@@ -88,7 +84,7 @@ def generate_launch_description():
         parameters=[{
             'pose_topic': '/vive/right/pose',
             'button_state_topic': '/vive/right/joint_states',
-            'output_topic': '/vive/right/output_pose',
+            'output_topic': '/g1pilot/right_hand/pose_ref',
             'publish_frequency': LaunchConfiguration('publish_frequency'),
             'target_frame': LaunchConfiguration('target_frame_right'),
             'reference_frame': LaunchConfiguration('reference_frame'),

@@ -5,8 +5,11 @@ import os
 import sys
 
 # Default Configuration
-DEFAULT_REGISTRY = "registry.gitlab.inria.fr/eurobin-horizon/code/vive_controller_tiago"
+DEFAULT_REGISTRY = "registry.gitlab.inria.fr/eurobin-horizon/code/ros2-vive-controller"
 IMAGE_NAME = "vive-controller"
+
+# DEFAULT_REGISTRY = "registry.gitlab.com/bleurobotics/containers/vive_controller"
+# IMAGE_NAME = "vive-controller-from-bleu-base-jazzy"
 CONTAINER_NAME = "ros2_vive_controller"
 
 def get_project_version():
@@ -71,7 +74,7 @@ def run_docker(args):
         "-e", "QT_X11_NO_MITSHM=1",
         "-e", f"ROS_DOMAIN_ID={args.domain}",
         "-e", "RMW_IMPLEMENTATION=rmw_cyclonedds_cpp",
-        "-e", "CYCLONEDDS_URI=/ros2_ws/src/ros2_vive_controller/config/cyclonedds.xml",
+        # "-e", "CYCLONEDDS_URI=/ros2_ws/src/ros2_vive_controller/config/cyclonedds.xml",
         # Hardware
         "-v", "/tmp/.X11-unix:/tmp/.X11-unix",
         "-v", "/dev:/dev",
