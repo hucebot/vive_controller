@@ -10,7 +10,7 @@ IMAGE_NAME = "vive-controller"
 
 # DEFAULT_REGISTRY = "registry.gitlab.com/bleurobotics/containers/vive_controller"
 # IMAGE_NAME = "vive-controller-from-bleu-base-jazzy"
-CONTAINER_NAME = "ros2_vive_controller"
+# CONTAINER_NAME = "ros2_vive_controller"
 
 def get_project_version():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -24,7 +24,10 @@ def get_project_version():
 
 def run_docker(args):
     tag = args.tag if args.tag else get_project_version()
-    full_image_name = f"{args.registry}/{IMAGE_NAME}:{tag}"
+    if args.registry:
+        full_image_name = f"{args.registry}/{IMAGE_NAME}:{tag}"
+    else:
+        full_image_name = f"{IMAGE_NAME}:{tag}"
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.dirname(script_dir)
@@ -105,6 +108,12 @@ def run_docker(args):
 
         # Mount Assets (Meshes/Images)
         cmd.extend(["-v", f"{repo_root}/assets:/ros2_ws/src/ros2_vive_controller/assets"])
+
+        # Mount setup.py
+        cmd.extend(["-v", f"{repo_root}/setup.py:/ros2_ws/src/ros2_vive_controller/setup.py"])
+
+        # Mount Entrypoint
+        cmd.extend(["-v", f"{repo_root}/.ci/entrypoint.sh:/entrypoint.sh"])
 
     else:
         print(f"[INFO] Running in PROD mode (Using baked-in image code)")
