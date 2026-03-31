@@ -51,6 +51,11 @@ franka: gui-perms
 tiago: gui-perms
 	docker compose --profile tiago up
 
+
+.PHONY: tiago_pro
+tiago_pro: gui-perms
+	docker compose --profile tiago_pro up
+
 .PHONY: g1
 g1: gui-perms
 	docker compose --profile g1 up
@@ -66,9 +71,10 @@ identify:
 	@echo "Vibrating RIGHT controller..."
 	-docker exec -it ros2_vive_franka /entrypoint.sh ros2 service call /vive/right/identify std_srvs/srv/Trigger || \
 	 docker exec -it ros2_vive_tiago /entrypoint.sh ros2 service call /vive/right/identify std_srvs/srv/Trigger || \
+	 docker exec -it ros2_vive_tiago_pro /entrypoint.sh ros2 service call /vive/right/identify std_srvs/srv/Trigger || \
 	 docker exec -it ros2_vive_g1 /entrypoint.sh ros2 service call /vive/right/identify std_srvs/srv/Trigger
 	@echo "Vibrating LEFT controller..."
-	-docker exec -it ros2_vive_tiago /entrypoint.sh ros2 service call /vive/left/identify std_srvs/srv/Trigger || \
+	-docker exec -it ros2_vive_tiago_pro /entrypoint.sh ros2 service call /vive/left/identify std_srvs/srv/Trigger || \
 	 docker exec -it ros2_vive_g1 /entrypoint.sh ros2 service call /vive/left/identify std_srvs/srv/Trigger
 .PHONY: stop
 stop:
