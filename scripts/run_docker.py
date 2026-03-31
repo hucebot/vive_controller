@@ -5,12 +5,12 @@ import os
 import sys
 
 # Default Configuration
-DEFAULT_REGISTRY = "registry.gitlab.inria.fr/eurobin-horizon/code/ros2-vive-controller"
-IMAGE_NAME = "vive-controller"
+# DEFAULT_REGISTRY = "registry.gitlab.inria.fr/eurobin-horizon/code/ros2-vive-controller"
+# IMAGE_NAME = "vive-controller"
 
-# DEFAULT_REGISTRY = "registry.gitlab.com/bleurobotics/containers/vive_controller"
-# IMAGE_NAME = "vive-controller-from-bleu-base-jazzy"
-# CONTAINER_NAME = "ros2_vive_controller"
+DEFAULT_REGISTRY = "registry.gitlab.com/bleurobotics/containers/vive_controller"
+IMAGE_NAME = "vive-controller-from-bleu-base-jazzy"
+CONTAINER_NAME = "ros2_vive_controller"
 
 def get_project_version():
     script_dir = os.path.dirname(os.path.abspath(__file__))

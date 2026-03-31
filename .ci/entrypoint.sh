@@ -13,6 +13,7 @@ if [ -f "$SETUP_FILE" ]; then
     if [ "$CURRENT_HASH" != "$STORED_HASH" ]; then
         echo "Detected setup.py change, rebuilding ros2_vive_controller..."
         cd /ros2_ws
+        rm -rf build/ros2_vive_controller install/ros2_vive_controller
         colcon build --symlink-install --packages-select ros2_vive_controller
         echo "$CURRENT_HASH" > "$SETUP_HASH_FILE"
     fi
