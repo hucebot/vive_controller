@@ -8,8 +8,8 @@ import sys
 # DEFAULT_REGISTRY = "registry.gitlab.inria.fr/eurobin-horizon/code/ros2-vive-controller"
 # IMAGE_NAME = "vive-controller"
 
-DEFAULT_REGISTRY = "registry.gitlab.com/bleurobotics/containers/vive_controller"
-IMAGE_NAME = "vive-controller-from-bleu-base-jazzy"
+DEFAULT_REGISTRY = "registry.gitlab.inria.fr/eurobin-horizon/code/ros2-vive-controller"
+IMAGE_NAME = "vive-controller"
 CONTAINER_NAME = "ros2_vive_controller"
 
 def get_project_version():
