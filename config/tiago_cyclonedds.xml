@@ -5,16 +5,13 @@
     <Domain id="any">
         <General>
             <Interfaces>
-                <NetworkInterface name="enx607d09178f25" />
+                <NetworkInterface name="enp1s0" />
             </Interfaces>
             <AllowMulticast>true</AllowMulticast>
         </General>
         <Discovery>
             <Peers>
-                <Peer address="176.16.0.1"/>
-                <Peer address="192.168.1.2"/>
-                <Peer address="192.168.1.1"/>
-                <Peer address="192.168.1.42"/>
+                <Peer address="10.68.0.1"/>
             </Peers>
             <ParticipantIndex>auto</ParticipantIndex>
             <MaxAutoParticipantIndex>200</MaxAutoParticipantIndex>

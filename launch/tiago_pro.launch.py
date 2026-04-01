@@ -54,7 +54,7 @@ def generate_launch_description():
             'button_state_topic': '/vive/left/joint_states',
             'output_topic': '/vive/left/output_pose',
             'publish_frequency': LaunchConfiguration('publish_frequency'),
-            'target_frame': LaunchConfiguration('target_frame_left', default='opensot/gripper_left_grasping_frame'),
+            'target_frame': LaunchConfiguration('target_frame_left', default='opensot/gripper_left_grasping_link'),
             'reference_frame': LaunchConfiguration('reference_frame'),
             'rotation_offset': [0.0, 0.0, 0.0], # Standard Tiago mapping
 
@@ -79,7 +79,7 @@ def generate_launch_description():
             'button_state_topic': '/vive/right/joint_states',
             'output_topic': '/vive/right/output_pose',
             'publish_frequency': LaunchConfiguration('publish_frequency'),
-            'target_frame': LaunchConfiguration('target_frame_right', default='opensot/gripper_right_grasping_frame'),
+            'target_frame': LaunchConfiguration('target_frame_right', default='opensot/gripper_right_grasping_link'),
             'reference_frame': LaunchConfiguration('reference_frame'),
             'rotation_offset': [0.0, 0.0, 0.0], # Standard Tiago mapping
 

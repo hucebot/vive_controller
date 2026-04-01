@@ -18,7 +18,7 @@ services:
     image: vive-controller-from-bleu-base-jazzy:2026.03am2_tracker_node
     build:
       context: .
-      dockerfile: .ci/Dockerfile
+      dockerfile: .opensot/Dockerfile
       target: app
       args:
         STEAM_USER: ${STEAM_USER}
@@ -44,7 +44,7 @@ services:
       - ./rviz:/ros2_ws/src/ros2_vive_controller/rviz
       - ./assets:/ros2_ws/src/ros2_vive_controller/assets
       - ./setup.py:/ros2_ws/src/ros2_vive_controller/setup.py
-      - ./.ci/entrypoint.vive3_0.sh:/entrypoint.sh
+      - ./.opensot/entrypoint.vive3_0.sh:/entrypoint.sh
     working_dir: /ros2_ws
     entrypoint: ["/entrypoint.sh"]
     command: >
@@ -69,7 +69,7 @@ services:
     image: vive-controller-from-bleu-base-jazzy:2026.03am2_tracker_node
     build:
       context: .
-      dockerfile: .ci/Dockerfile
+      dockerfile: .opensot/Dockerfile
       target: app
       args:
         STEAM_USER: ${STEAM_USER}
@@ -94,7 +94,7 @@ services:
       - ./rviz:/ros2_ws/src/ros2_vive_controller/rviz
       - ./assets:/ros2_ws/src/ros2_vive_controller/assets
       - ./setup.py:/ros2_ws/src/ros2_vive_controller/setup.py
-      - ./.ci/entrypoint.vive3_0.sh:/entrypoint.sh
+      - ./.opensot/entrypoint.vive3_0.sh:/entrypoint.sh
     working_dir: /ros2_ws
     entrypoint: ["/entrypoint.sh"]
     command: >
@@ -116,7 +116,7 @@ services:
     image: ${REGISTRY:-registry.gitlab.inria.fr/eurobin-horizon/code/vive_controller_tiago}/vive-controller:${TAG:-latest}
     build:
       context: .
-      dockerfile: .ci/Dockerfile
+      dockerfile: .opensot/Dockerfile
       target: app
       args:
         STEAM_USER: ${STEAM_USER}
@@ -182,6 +182,22 @@ services:
       serial_left:=${SERIAL_LEFT:-LHR-97752221}
       serial_right:=${SERIAL_RIGHT:-LHR-9ABF6D66}
       linear_scale:=${LINEAR_SCALE:-1.0}
+
+  # ── TIAGO (Dual Arm) ─────────────────────────────────────────────────────
+  tiago_pro:
+    <<: *base_robot
+    profiles: [tiago_pro]
+    container_name: ros2_vive_tiago_pro
+    env_file: .env
+    environment:
+      <<: [*common_env, *ros_env]
+      CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/tiago_cyclonedds.xml
+    command: >
+      ros2 launch ros2_vive_controller tiago_pro.launch.py
+      serial_left:=${SERIAL_LEFT:-LHR-97752221}
+      serial_right:=${SERIAL_RIGHT:-LHR-9ABF6D66}
+      linear_scale:=${LINEAR_SCALE:-1.0}
+
 
   # ── G1 (Dual Arm) ────────────────────────────────────────────────────────
   g1:

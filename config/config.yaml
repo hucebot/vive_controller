@@ -1,12 +1,12 @@
 general:
   angular_scale: 1.0
   csv_path: /ros_ws/src/ros1_vive_controller/data/
-  frame_id: /ci/world
+  frame_id: /opensot/world
   left_gripper_topic: /vive/left/gripper
   left_marker_topic: /vive/left/marker
   left_position_topic: /vive/left/pose
   linear_scale: 1.0
-  link_name: /ci/world
+  link_name: /opensot/world
   move_base: true
   move_base_angular_topic: /vive/base/angular
   move_base_linear_x_topic: /vive/base/linear_x
