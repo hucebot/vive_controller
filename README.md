@@ -1,8 +1,12 @@
 # ROS 2 Vive Controller
-
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![Ros Version](https://img.shields.io/badge/ROS2-Humble-yellow)](https://docs.ros.org/en/humble/index.html)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+
+<div align="center">
+  <img src="assets/images/vive_controller_logo.png" alt="ROS 2 Vive Controller Logo" width="250" height="250">
+</div>
+
 
 A unified ROS 2 driver and teleoperation bridge for HTC Vive hardware (Trackers, Controllers, and Base Stations). This package provides a standalone Dockerized workflow for workspace calibration and robot teleoperation.
 
