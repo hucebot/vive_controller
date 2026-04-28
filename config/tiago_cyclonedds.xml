@@ -1,20 +1,30 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<CycloneDDS xmlns="https://cdds.io/config"
-            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-            xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/master/etc/cyclonedds.xsd">
-    <Domain id="any">
-        <General>
-            <Interfaces>
-                <NetworkInterface name="enp1s0" />
-            </Interfaces>
-            <AllowMulticast>true</AllowMulticast>
-        </General>
-        <Discovery>
-            <Peers>
-                <Peer address="10.68.0.1"/>
-            </Peers>
-            <ParticipantIndex>auto</ParticipantIndex>
-            <MaxAutoParticipantIndex>200</MaxAutoParticipantIndex>
-        </Discovery>
+<CycloneDDS>
+    <Domain>
+      <General>
+        <AllowMulticast>false</AllowMulticast>
+        <MaxMessageSize>1400B</MaxMessageSize>
+        <Interfaces>
+          <NetworkInterface name="enx607d09178f25" priority="1"/>
+          <NetworkInterface name="lo" priority="0"/>
+        </Interfaces>
+      </General>
+      <Discovery>
+        <ParticipantIndex>auto</ParticipantIndex>
+        <Peers>
+          <Peer Address="10.68.0.1"/>
+          <Peer Address="10.68.0.210"/>
+          <Peer Address="localhost"/>
+        </Peers>
+        <MaxAutoParticipantIndex>500</MaxAutoParticipantIndex>
+      </Discovery>
+      <Internal>
+        <Watermarks>
+          <WhcHigh>2000kB</WhcHigh>
+        </Watermarks>
+      </Internal>
+      <Tracing>
+        <Verbosity>config</Verbosity>
+        <OutputFile>${HOME}/.ros/log/cdds.log</OutputFile>
+      </Tracing>
     </Domain>
-</CycloneDDS>
+  </CycloneDDS>

@@ -18,7 +18,7 @@ services:
     image: vive-controller-from-bleu-base-jazzy:2026.03am2_tracker_node
     build:
       context: .
-      dockerfile: .opensot/Dockerfile
+      dockerfile: .ci/Dockerfile
       target: app
       args:
         STEAM_USER: ${STEAM_USER}
@@ -44,7 +44,7 @@ services:
       - ./rviz:/ros2_ws/src/ros2_vive_controller/rviz
       - ./assets:/ros2_ws/src/ros2_vive_controller/assets
       - ./setup.py:/ros2_ws/src/ros2_vive_controller/setup.py
-      - ./.opensot/entrypoint.vive3_0.sh:/entrypoint.sh
+      - ./.ci/entrypoint.vive3_0.sh:/entrypoint.sh
     working_dir: /ros2_ws
     entrypoint: ["/entrypoint.sh"]
     command: >
@@ -69,7 +69,7 @@ services:
     image: vive-controller-from-bleu-base-jazzy:2026.03am2_tracker_node
     build:
       context: .
-      dockerfile: .opensot/Dockerfile
+      dockerfile: .ci/Dockerfile
       target: app
       args:
         STEAM_USER: ${STEAM_USER}
@@ -94,7 +94,7 @@ services:
       - ./rviz:/ros2_ws/src/ros2_vive_controller/rviz
       - ./assets:/ros2_ws/src/ros2_vive_controller/assets
       - ./setup.py:/ros2_ws/src/ros2_vive_controller/setup.py
-      - ./.opensot/entrypoint.vive3_0.sh:/entrypoint.sh
+      - ./.ci/entrypoint.vive3_0.sh:/entrypoint.sh
     working_dir: /ros2_ws
     entrypoint: ["/entrypoint.sh"]
     command: >
@@ -116,7 +116,7 @@ services:
     image: ${REGISTRY:-registry.gitlab.inria.fr/eurobin-horizon/code/vive_controller_tiago}/vive-controller:${TAG:-latest}
     build:
       context: .
-      dockerfile: .opensot/Dockerfile
+      dockerfile: .ci/Dockerfile
       target: app
       args:
         STEAM_USER: ${STEAM_USER}
