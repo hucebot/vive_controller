@@ -21,7 +21,7 @@ def generate_launch_description():
         description='Serial number for the left controller'
     )
     linear_scale_arg = DeclareLaunchArgument(
-        'linear_scale', default_value='1.0',
+        'linear_scale', default_value='0.5o',
         description='Linear scaling for both controllers'
     )
     publish_frequency_arg = DeclareLaunchArgument(
