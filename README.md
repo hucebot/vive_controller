@@ -276,6 +276,6 @@ This package is actively developed by the **[HuCeBot Team](https://github.com/hu
 
 
 **Authors & Core Contributors:**
-* Authors/Maintainers: **[Dionis Totsila](https://github.com/dtotsila)**, **[Jean-Baptiste Mouret](https://github.com/jbmouret)**
+* Maintainers: **[Dionis Totsila](https://github.com/dtotsila)**, **[Jean-Baptiste Mouret](https://github.com/jbmouret)**
 * Active contributors: **[Hippolyte Henry](https://github.com/hippolyte-bleu)**
 * Other contributors: **[Clemente Donoso](https://github.com/cdonoso)**
