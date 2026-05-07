@@ -1,73 +1,63 @@
 # --- Configuration ---
 # Load variables from .env if it exists
 ifneq ("$(wildcard .env)","")
-    include .env
-    export $(shell sed 's/=.*//' .env)
+	include .env
+	export $(shell sed 's/=.*//' .env)
 endif
 
 # Default shell
 SHELL := /bin/bash
 
+# --- Phony Targets ---
+.PHONY: help gui-perms build build-force push franka tiago tiago_pro g1 calibrate identify stop clean
+
 # --- Help ---
-.PHONY: help
-help:
+help: ## Show this help message
 	@echo "Vive Controller Docker Management"
 	@echo "Usage: make <target>"
 	@echo ""
-	@echo "Robot Missions:"
-	@echo "  make franka      - Start Franka (Single Right Controller)"
-	@echo "  make tiago       - Start Tiago Dual Arm"
-	@echo "  make g1          - Start G1 Dual Arm"
-	@echo ""
-	@echo "Utility:"
-	@echo "  make build       - Build the 'app' image (cached)"
-	@echo "  make build-force - Build from scratch (no cache)"
-	@echo "  make calibrate   - Run workspace calibration"
-	@echo "  make identify    - Vibrate controllers to check IDs"
-	@echo "  make stop        - Stop all running vive containers"
-	@echo "  make clean       - Remove all vive containers and networks"
+	@echo "Available commands:"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # --- GUI Permissions ---
-.PHONY: gui-perms
-gui-perms:
+gui-perms: ## Set X11 permissions for Docker UI (used internally)
 	@echo "Setting X11 permissions for Docker..."
 	@xhost + > /dev/null
 
 # --- Build Targets ---
-.PHONY: build
-build:
+build: ## Build the 'app' image (cached)
 	docker compose build
 
-.PHONY: build-force
-build-force:
+build-force: ## Build from scratch (no cache)
 	docker compose build --no-cache
 
+push: ## Push built images to the registry
+	@echo "Pushing images to the configured registry..."
+	docker compose push
+
+pull: ## Pull the latest pre-built images from the registry
+	@echo "Pulling latest images..."
+	docker compose pull
+
 # --- Robot Missions ---
-.PHONY: franka
-franka: gui-perms
+franka: gui-perms ## Start Franka (Single Right Controller)
 	docker compose --profile franka up
 
-.PHONY: tiago
-tiago: gui-perms
+tiago: gui-perms ## Start Tiago Dual Arm
 	docker compose --profile tiago up
 
-
-.PHONY: tiago_pro
-tiago_pro: gui-perms
+tiago_pro: gui-perms ## Start Tiago Pro Dual Arm
 	docker compose --profile tiago_pro up
 
-.PHONY: g1
-g1: gui-perms
+g1: gui-perms ## Start G1 Dual Arm
 	docker compose --profile g1 up
 
 # --- Utilities ---
-.PHONY: calibrate
-calibrate: gui-perms
+calibrate: gui-perms ## Run workspace calibration
 	# Runs calibration inside the franka container context
 	docker compose --profile franka run --rm franka ros2 launch ros2_vive_controller calibration.launch.py
 
-.PHONY: identify
-identify:
+identify: ## Vibrate controllers to check IDs
 	@echo "Vibrating RIGHT controller..."
 	-docker exec -it ros2_vive_franka /entrypoint.sh ros2 service call /vive/right/identify std_srvs/srv/Trigger || \
 	 docker exec -it ros2_vive_tiago /entrypoint.sh ros2 service call /vive/right/identify std_srvs/srv/Trigger || \
@@ -76,10 +66,10 @@ identify:
 	@echo "Vibrating LEFT controller..."
 	-docker exec -it ros2_vive_tiago_pro /entrypoint.sh ros2 service call /vive/left/identify std_srvs/srv/Trigger || \
 	 docker exec -it ros2_vive_g1 /entrypoint.sh ros2 service call /vive/left/identify std_srvs/srv/Trigger
-.PHONY: stop
-stop:
+
+stop: ## Stop all running vive containers
 	docker compose down
 
-.PHONY: clean
-clean:
+clean: ## Remove all vive containers and networks
 	docker compose down --remove-orphans --volumes
+
