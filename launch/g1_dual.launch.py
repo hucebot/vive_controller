@@ -7,7 +7,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 def generate_launch_description():
-    # Locate paths
+    # 1. Locate the vive_teleop.launch.py file
     pkg_share = get_package_share_directory('ros2_vive_controller')
     included_launch_path = os.path.join(pkg_share, 'launch', 'vive_teleop.launch.py')
 
@@ -59,23 +59,23 @@ def generate_launch_description():
             'button_state_topic': '/vive/left/joint_states',
             'output_topic': '/g1pilot/left_hand/pose_ref',
             'publish_frequency': LaunchConfiguration('publish_frequency'),
-            'target_frame': LaunchConfiguration('target_frame_left', default='ci/gripper_left_grasping_frame'),
+            'target_frame': LaunchConfiguration('target_frame_left'),
             'reference_frame': LaunchConfiguration('reference_frame'),
-            'rotation_offset': [0.0, 0.0, 0.0],
 
-            # --- G1 Specific Mappings ---
+            # --- MANUAL BUTTON TOPIC MAPPING (LEFT) ---
             'trigger_topic': '/vive/left/trigger',
+            # 'trackpad_x_topic': '/vive/left/trackpad_x',
             'trackpad_x_topic': '/g1pilot/left_hand/dx3/action',
             'trackpad_y_topic': '/vive/left/trackpad_y',
             'grip_topic': '/vive/left/grip',
             'menu_topic': '/vive/left/menu',
             'trackpad_touched_topic': '/vive/left/trackpad_touched',
             'trackpad_pressed_topic': '/vive/left/trackpad_pressed',
-            'trackpad_pressed_required' : 'true'
+            'trackpad_pressed_required' : 'true'  # Only publish when trackpad is pressed
         }]
     )
 
-    # --- Teleop bridge node - RIGHT ---
+    # 5. Teleop bridge node - RIGHT
     teleop_bridge_right = Node(
         package='ros2_vive_controller',
         executable='teleop_bridge_node',
@@ -86,26 +86,28 @@ def generate_launch_description():
             'button_state_topic': '/vive/right/joint_states',
             'output_topic': '/g1pilot/right_hand/pose_ref',
             'publish_frequency': LaunchConfiguration('publish_frequency'),
-            'target_frame': LaunchConfiguration('target_frame_right', default='ci/gripper_right_grasping_frame'),
+            'target_frame': LaunchConfiguration('target_frame_right'),
             'reference_frame': LaunchConfiguration('reference_frame'),
-            'rotation_offset': [0.0, 0.0, 0.0],
 
-            # --- G1 Specific Mappings ---
+            # --- MANUAL BUTTON TOPIC MAPPING (RIGHT) ---
             'trigger_topic': '/vive/right/trigger',
-            'trackpad_x_topic': '/g1pilot/right_hand/dx3/action',
+            # 'trackpad_x_topic': '/vive/right/trackpad_x',
             'trackpad_y_topic': '/vive/right/trackpad_y',
+            'trackpad_x_topic': '/g1pilot/right_hand/dx3/action',
             'grip_topic': '/vive/right/grip',
             'menu_topic': '/vive/right/menu',
             'trackpad_touched_topic': '/vive/right/trackpad_touched',
             'trackpad_pressed_topic': '/vive/right/trackpad_pressed',
-            'trackpad_pressed_required' : 'true'
+            'trackpad_pressed_required' : 'true'  #
         }]
     )
 
     return LaunchDescription([
+        include_vive_teleop,
         publish_frequency_arg,
         reference_frame_arg,
-        include_vive_teleop,
+        target_frame_left_arg,
+        target_frame_right_arg,
         teleop_bridge_left,
         teleop_bridge_right,
     ])
