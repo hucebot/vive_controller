@@ -19,6 +19,9 @@ setup(
         # 2. Install Config Files (YAML)
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
 
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
+
+
         # 3. Install RViz Files
         (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
     ],

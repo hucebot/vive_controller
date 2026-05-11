@@ -1,58 +1,35 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, TimerAction, LogInfo
-from launch.conditions import IfCondition
+from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 def generate_launch_description():
     pkg_share = get_package_share_directory('ros2_vive_controller')
 
-    # Check if we should use 'vive.rviz' or 'view_vive.rviz' based on your file tree
     rviz_filename = 'view_vive.rviz'
     rviz_config = os.path.join(pkg_share, 'rviz', rviz_filename)
     vive_params_file = os.path.join(pkg_share, 'config', 'vive.params.yaml')
 
-    # --- DEBUG LOGGING ---
-    print(f"\n[DEBUG] Package Share Path: {pkg_share}")
-    print(f"[DEBUG] Looking for RViz file at: {rviz_config}")
-
-    if os.path.exists(rviz_config):
-        print(f"[DEBUG] ✅ File FOUND.\n")
-    else:
-        print(f"[DEBUG] ❌ File NOT FOUND.")
-        print(f"[DEBUG] Contents of {os.path.join(pkg_share, 'rviz')}:")
-        try:
-            print(os.listdir(os.path.join(pkg_share, 'rviz')))
-        except FileNotFoundError:
-            print("   (The 'rviz' directory itself was not found in share. Check setup.py data_files!)")
-        print("\n")
-    # ---------------------
-
     return LaunchDescription([
-        DeclareLaunchArgument(
-            'rviz',
-            default_value='true',
-            description='Open RViz to visualize'
-        ),
+        DeclareLaunchArgument('rviz', default_value='true'),
+        DeclareLaunchArgument('serial_left', default_value='LHR-97752221'),
+        DeclareLaunchArgument('serial_right', default_value='LHR-9ABF6D66'),
+
+        # --- CHANGED: Name matches parent launch and node parameter ---
+        DeclareLaunchArgument('reference_lighthouse_serial', default_value=''),
 
         DeclareLaunchArgument(
-            'serial_left',
-            default_value='LHR-97752221',
-            description='Serial number for the left controller'
+            'only_right',
+            default_value='false',
+            description='If true, the left controller node is skipped.'
         ),
-
         DeclareLaunchArgument(
-            'serial_right',
-            default_value='LHR-9ABF6D66',
-            description='Serial number for the right controller'
-        ),
-
-        DeclareLaunchArgument(
-            'tracking_reference',
-            default_value='LHB-DFA5BD2C',
-            description='Serial number for the tracking reference (base station)'
+            'linear_scale',
+            default_value='1.0',
+            description='Translation scaling factor.'
         ),
 
         # --- LEFT HAND DRIVER ---
@@ -62,11 +39,13 @@ def generate_launch_description():
             name='driver_left',
             namespace='vive/left',
             output='screen',
+            condition=UnlessCondition(LaunchConfiguration('only_right')),
             parameters=[
                 vive_params_file,
                 {'side': 'left',
+                 'linear_scale': LaunchConfiguration('linear_scale'),
                  'serial': LaunchConfiguration('serial_left'),
-                 'htc_vive.tracking_reference': LaunchConfiguration('tracking_reference')}
+                 'reference_lighthouse_serial': LaunchConfiguration('reference_lighthouse_serial')} # <--- UPDATED
             ]
         ),
 
@@ -81,9 +60,9 @@ def generate_launch_description():
                 parameters=[
                     vive_params_file,
                     {'side': 'right',
+                     'linear_scale': LaunchConfiguration('linear_scale'),
                      'serial': LaunchConfiguration('serial_right'),
-                     'htc_vive.tracking_reference': LaunchConfiguration('tracking_reference')
-                     }
+                     'reference_lighthouse_serial': LaunchConfiguration('reference_lighthouse_serial')} # <--- UPDATED
                 ]
             ),
         ]),

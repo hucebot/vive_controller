@@ -1,0 +1,21 @@
+<CycloneDDS>
+  <Domain>
+    <General>
+      <!-- Define which network interface to use -->
+      <Interfaces>
+        <NetworkInterface name="enx607d09178f25" priority="1" />
+      </Interfaces>
+      <MaxMessageSize>1400B</MaxMessageSize>
+
+      <!-- Explicitly allow/control multicast -->
+      <AllowMulticast>true</AllowMulticast>
+
+      <!-- Optional: Change the multicast group if you have collisions -->
+    </General>
+    <Discovery>
+      <!-- Force discovery to use multicast -->
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>500</MaxAutoParticipantIndex>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

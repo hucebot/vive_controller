@@ -7,37 +7,56 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 def generate_launch_description():
-    # 1. Locate the vive_teleop.launch.py file
     pkg_share = get_package_share_directory('ros2_vive_controller')
     included_launch_path = os.path.join(pkg_share, 'launch', 'vive_teleop.launch.py')
 
-    # 2. Define the Include action for hardware drivers
-    include_vive_teleop = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(included_launch_path),
-        launch_arguments={'rviz': 'true'}.items()
+    # --- General Launch Arguments ---
+    serial_right_arg = DeclareLaunchArgument(
+        'serial_right', default_value='LHR-9ABF6D66', description='Serial number for the right controller'
     )
 
-    # 3. General Launch Arguments
+    serial_left_arg = DeclareLaunchArgument(
+        'serial_left', default_value='LHR-97752221', description='Serial number for the left controller'
+    )
+
+    reference_lighthouse_serial_arg = DeclareLaunchArgument(
+        'reference_lighthouse_serial', default_value='', description='Serial number for the reference lighthouse'
+    )
+
+    only_right_arg = DeclareLaunchArgument(
+        'only_right', default_value='true', description="If set, only the right controller will be active."
+    )
+
+    linear_scale_arg = DeclareLaunchArgument(
+        'linear_scale', default_value='1.0', description='Scaling factor for controller translation.'
+    )
+
     publish_frequency_arg = DeclareLaunchArgument(
-        'publish_frequency',
-        default_value='30.0',
-        description='Publishing frequency in Hz.'
+        'publish_frequency', default_value='30.0', description='Publishing frequency in Hz.'
     )
 
     reference_frame_arg = DeclareLaunchArgument(
-        'reference_frame',
-        default_value='panda_link0',
-        description='Reference frame for transform lookup'
+        'reference_frame', default_value='panda_link0', description='Reference frame for transform lookup'
     )
-
 
     target_frame_franka_tcp_arg = DeclareLaunchArgument(
-        'target_frame_franka_tcp',
-        default_value='panda_hand_tcp',
-        description='Target frame for Franka TCP controller'
+        'target_frame_franka_tcp', default_value='panda_hand_tcp', description='Target frame for Franka TCP controller'
     )
 
-    # 5. Teleop bridge node - RIGHT
+    # --- Hardware Driver Inclusion ---
+    include_vive_teleop = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(included_launch_path),
+        launch_arguments={
+            'rviz': 'true',
+            'serial_right': LaunchConfiguration('serial_right'),
+            'serial_left': LaunchConfiguration('serial_left'),
+            'reference_lighthouse_serial': LaunchConfiguration('reference_lighthouse_serial'), # --- NEW: Pass it down ---
+            'only_right': LaunchConfiguration('only_right'),
+            'linear_scale': LaunchConfiguration('linear_scale')
+        }.items()
+    )
+
+    # --- Teleop Bridge Node ---
     teleop_bridge_franka_tcp = Node(
         package='ros2_vive_controller',
         executable='teleop_bridge_node',
@@ -50,24 +69,26 @@ def generate_launch_description():
             'publish_frequency': LaunchConfiguration('publish_frequency'),
             'target_frame': LaunchConfiguration('target_frame_franka_tcp'),
             'reference_frame': LaunchConfiguration('reference_frame'),
-
-            # --- ADD THE ROTATION OFFSET HERE ---
             'rotation_offset': [180.0, 0.0, 0.0],
-
-            # --- MANUAL BUTTON TOPIC MAPPING (RIGHT) ---
             'trigger_topic': '/vive/right/trigger',
             'trackpad_x_topic': '/vive/right/trackpad_x',
             'trackpad_y_topic': '/vive/right/trackpad_y',
-            'grip_topic': '/panda_gripper/gripper_command',
-            'menu_topic': '/vive/right/menu',
+            'grip_topic': '/vive/right/grip_button',
+            'menu_topic': '/panda_gripper/gripper_command',
             'trackpad_touched_topic': '/vive/right/trackpad_touched',
             'trackpad_pressed_topic': '/vive/right/trackpad_pressed',
         }]
     )
+
     return LaunchDescription([
-        include_vive_teleop,
+        serial_right_arg,
+        serial_left_arg,
+        reference_lighthouse_serial_arg,
+        only_right_arg,
+        linear_scale_arg,
         publish_frequency_arg,
         reference_frame_arg,
         target_frame_franka_tcp_arg,
+        include_vive_teleop,
         teleop_bridge_franka_tcp,
     ])

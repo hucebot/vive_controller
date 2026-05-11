@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 import time
 import rclpy
+import numpy as np
+from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, TransformStamped
 from std_msgs.msg import Bool
 from sensor_msgs.msg import JointState
 from visualization_msgs.msg import Marker
+from std_srvs.srv import Trigger
+from tf2_ros import TransformBroadcaster
 from OneEuroFilter import OneEuroFilter
-# Ensure your import matches your folder structure
 from ros2_vive_controller.openvr_class.openvr_class import triad_openvr
-
 
 class ViveDriverNode(Node):
     def __init__(self):
@@ -21,13 +23,13 @@ class ViveDriverNode(Node):
             parameters=[
                 ('side', 'right'),
                 ('serial', ''),
+                ('reference_lighthouse_serial', ''),
                 ('frame_id', 'vive_world'),
-                # Workspace Limits (meters)
+                ('linear_scale', 1.0),
                 ('workspace.x_min', -1.0), ('workspace.x_max', 1.0),
                 ('workspace.y_min', -1.0), ('workspace.y_max', 1.0),
                 ('workspace.z_min', 0.0),  ('workspace.z_max', 2.0),
-                ('workspace.padding', 0.1),  # Vibration buffer zone
-                # Smoothing
+                ('workspace.padding', 0.1),
                 ('filter.mincutoff', 1.0),
                 ('filter.beta', 0.007),
                 ('filter.dcutoff', 1.0)
@@ -36,9 +38,10 @@ class ViveDriverNode(Node):
 
         self.side = self.get_parameter('side').value
         self.serial = self.get_parameter('serial').value
+        self.ref_lh_serial = self.get_parameter('reference_lighthouse_serial').value
         self.frame_id = self.get_parameter('frame_id').value
+        self.linear_scale = self.get_parameter('linear_scale').value
 
-        # Load Workspace Cache
         self.ws = {
             'x_min': self.get_parameter('workspace.x_min').value,
             'x_max': self.get_parameter('workspace.x_max').value,
@@ -53,33 +56,50 @@ class ViveDriverNode(Node):
         self.vr = triad_openvr()
         self.device_name = self._find_device_by_serial(self.serial)
 
-        if not self.device_name:
-            self.get_logger().error(f"Could not find controller {self.serial}")
-            # We don't crash, allowing potential re-connection logic later
-        else:
-            self.get_logger().info(
-                f"Connected to {self.side} controller: {self.serial}")
+        # Find Lighthouse
+        self.lh_device_name = None
+        if self.ref_lh_serial:
+            self.lh_device_name = self._find_device_by_serial(self.ref_lh_serial)
+            if self.lh_device_name:
+                self.get_logger().info(f"Using Lighthouse {self.ref_lh_serial} as origin frame.")
+            else:
+                self.get_logger().warn(f"Lighthouse {self.ref_lh_serial} not found. Using default OpenVR world frame.")
 
-        # --- Publishers ---
+        # --- Publishers & Services ---
+        self.srv_identify = self.create_service(Trigger, 'identify', self.identify_callback)
         self.pub_pose = self.create_publisher(PoseStamped, 'pose', 10)
         self.pub_joy = self.create_publisher(JointState, 'joint_states', 10)
         self.pub_marker = self.create_publisher(Marker, 'workspace_marker', 10)
+        self.tf_broadcaster = TransformBroadcaster(self)
+
+        if not self.device_name:
+            self.get_logger().error(f"Could not find controller {self.serial}")
+        else:
+            self.get_logger().info(f"Connected to {self.side} controller: {self.serial}")
+
+        # --- State Variables ---
         self.is_calibrating = False
-        self.create_subscription(
-            Bool, '/vive/is_calibrating', self.calibration_callback, 10)
+        self.last_heartbeat_time = 0.0
+        self.create_subscription(Bool, '/vive/is_calibrating', self.calibration_callback, 10)
         self.create_timer(0.05, self.watchdog_check)
-        # --- Filters ---
+
         self.filters = self._init_filters()
+        self.tracking_active = False
+        self.haptic_frames_remaining = 0
 
-        # --- Loop ---
-        self.create_timer(0.02, self.update)  # 50Hz
+        self.create_timer(0.02, self.update)
+        self.publish_workspace_marker(self.frame_id)
 
-        # Publish marker once at startup (and periodically in loop)
-        self.publish_workspace_marker()
-
-        # Tracking staate
-        self.tracking_active = False  # Flag to track if we currently have valid tracking
-        self.haptic_frames_remaining = 0  # Counter for vibration duration
+    def identify_callback(self, request, response):
+        if not self.device_name:
+            response.success = False
+            response.message = "Controller not connected."
+            return response
+        self.get_logger().info(f"Identifying controller: {self.serial}")
+        self.haptic_frames_remaining = 150
+        response.success = True
+        response.message = f"Vibrating {self.side} controller ({self.serial})"
+        return response
 
     def _find_device_by_serial(self, target_serial):
         for key, dev in self.vr.devices.items():
@@ -90,15 +110,11 @@ class ViveDriverNode(Node):
     def calibration_callback(self, msg):
         if msg.data:
             self.is_calibrating = True
-            # Reset the watchdog timer
             self.last_heartbeat_time = self.get_clock().now().nanoseconds / 1e9
 
     def watchdog_check(self):
-        # If we haven't heard a heartbeat in 0.5 seconds, Force Safety ON
         now = self.get_clock().now().nanoseconds / 1e9
-        timeout = 0.5
-
-        if self.is_calibrating and (now - self.last_heartbeat_time > timeout):
+        if self.is_calibrating and (now - self.last_heartbeat_time > 0.5):
             self.get_logger().warn("Calibration heartbeat lost! Re-enabling safety limits.")
             self.is_calibrating = False
 
@@ -112,80 +128,165 @@ class ViveDriverNode(Node):
         return {axis: OneEuroFilter(**params) for axis in ['x', 'y', 'z']}
 
     def check_workspace_and_vibrate(self, pos, device):
-        """
-        Checks if position is within bounds.
-        If UNSAFE: Vibrates controller and returns False.
-        If SAFE: Returns True.
-        """
         x, y, z = pos
         pad = self.ws['pad']
-
         in_bounds = (
             self.ws['x_min'] + pad < x < self.ws['x_max'] - pad and
             self.ws['y_min'] + pad < y < self.ws['y_max'] - pad and
             self.ws['z_min'] + pad < z < self.ws['z_max'] - pad
         )
-
         if not in_bounds:
-            # Vibrate the controller (Haptic Feedback) - 2ms pulse
             device.trigger_haptic_pulse(2000)
-            return False  # Unsafe
+            return False
+        return True
 
-        return True  # Safe
+    def _compute_relative_pose(self, target_pose, reference_pose):
+        """Transforms target_pose into the coordinate frame of reference_pose."""
+        T_ref = np.eye(4)
+        T_ref[:3, 3] = reference_pose[:3]
+        T_ref[:3, :3] = R.from_quat(reference_pose[3:]).as_matrix()
+
+        T_target = np.eye(4)
+        T_target[:3, 3] = target_pose[:3]
+        T_target[:3, :3] = R.from_quat(target_pose[3:]).as_matrix()
+
+        T_rel = np.linalg.inv(T_ref) @ T_target
+
+        pos = T_rel[:3, 3]
+        quat = R.from_matrix(T_rel[:3, :3]).as_quat()
+
+        return [pos[0], pos[1], pos[2], quat[0], quat[1], quat[2], quat[3]]
+
+    def _make_tf(self, pose, parent_frame, child_frame):
+        t = TransformStamped()
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = parent_frame
+        t.child_frame_id = child_frame
+
+        t.transform.translation.x = pose[0]
+        t.transform.translation.y = pose[1]
+        t.transform.translation.z = pose[2]
+        t.transform.rotation.x = pose[3]
+        t.transform.rotation.y = pose[4]
+        t.transform.rotation.z = pose[5]
+        t.transform.rotation.w = pose[6]
+        return t
+
+    def _apply_rotation_offset(self, pose, axis='z', angle_degrees=180):
+        """Rotates a pose around a local axis to correct hardware alignments."""
+        T = np.eye(4)
+        T[:3, 3] = pose[:3]
+        T[:3, :3] = R.from_quat(pose[3:]).as_matrix()
+
+        T_rot = np.eye(4)
+        T_rot[:3, :3] = R.from_euler(axis, angle_degrees, degrees=True).as_matrix()
+
+        T_new = T @ T_rot
+
+        pos = T_new[:3, 3]
+        quat = R.from_matrix(T_new[:3, :3]).as_quat()
+        return [pos[0], pos[1], pos[2], quat[0], quat[1], quat[2], quat[3]]
 
     def update(self):
+        # 1. Poll OpenVR to catch any new devices
+        self.vr.poll_vr_events()
+
+        # 2. Check controller
         if not self.device_name:
-            return
+            self.device_name = self._find_device_by_serial(self.serial)
+            if self.device_name:
+                self.get_logger().info(f"Connected to {self.side} controller: {self.serial}")
+            else:
+                return
+
+        # 3. Check lighthouse
+        if self.ref_lh_serial and not self.lh_device_name:
+            self.lh_device_name = self._find_device_by_serial(self.ref_lh_serial)
+            if self.lh_device_name:
+                self.get_logger().info(f"Using Lighthouse {self.ref_lh_serial} as origin frame.")
 
         controller = self.vr.devices[self.device_name]
+
+        # --- HAPTICS ---
+        if self.haptic_frames_remaining > 0:
+            controller.trigger_haptic_pulse(3900)
+            time.sleep(0.005)
+            controller.trigger_haptic_pulse(3900)
+            self.haptic_frames_remaining -= 1
+
         pose = controller.get_pose_quaternion()
         inputs = controller.get_controller_inputs()
 
+        # Tracking Check
         if pose is None:
             if self.tracking_active:
                 self.get_logger().warn(f"Tracking LOST for {self.side}")
                 self.tracking_active = False
-            return # Exit early
+            return
 
-        # If we just regained tracking (pose is valid, but flag was False)
         if not self.tracking_active:
             self.get_logger().info(f"Tracking ACQUIRED for {self.side}! Buzzing...")
             self.tracking_active = True
-            self.haptic_frames_remaining = 50 # Vibrate for 50 frames (~1 second)
+            self.haptic_frames_remaining = 50
 
-        # --- 2. NON-BLOCKING VIBRATION ---
-        # If the counter is > 0, vibrate this frame and decrease counter
-        if self.haptic_frames_remaining > 0:
-            controller.trigger_haptic_pulse(3000) # Strong pulse
-            self.haptic_frames_remaining -= 1
+        # --- Frame Resolution & TF Broadcasting ---
+        world_frame = self.frame_id
+        lh_frame = "lighthouse_origin"
+        controller_frame = f"vive_{self.side}_link"
 
-        # --- 3. SAFETY CHECK ---
+        final_pose = pose
+        current_ref_frame = world_frame
 
-        # --- 2. Publish Data (Only if Safe) ---
+        if self.lh_device_name:
+            lh = self.vr.devices.get(self.lh_device_name)
+            if lh:
+                lh_pose = lh.get_pose_quaternion()
+                if lh_pose:
+                    # --- NEW: Flip the lighthouse frame 180 degrees on the Z (Yaw) axis ---
+                    # Note: If it's flipping upside down instead of spinning around,
+                    # change axis='z' to axis='x' or axis='y'
+                    lh_pose = self._apply_rotation_offset(lh_pose, axis='z', angle_degrees=180)
+
+                    current_ref_frame = lh_frame
+                    # Broadcast World -> Lighthouse
+                    self.tf_broadcaster.sendTransform(self._make_tf(lh_pose, world_frame, lh_frame))
+                    # Compute Relative Pose
+                    final_pose = self._compute_relative_pose(pose, lh_pose)
+                    # Broadcast Lighthouse -> Controller
+                    self.tf_broadcaster.sendTransform(self._make_tf(final_pose, lh_frame, controller_frame))
+
+        # Fallback if no lighthouse tracked
+        if current_ref_frame == world_frame:
+            self.tf_broadcaster.sendTransform(self._make_tf(final_pose, world_frame, controller_frame))
+
+        # --- Safety Check ---
+        raw_pos = final_pose[0:3]
+        if not self.is_calibrating:
+            if not self.check_workspace_and_vibrate(raw_pos, controller):
+                return
+
+        # --- Publish Data ---
         timestamp = self.get_clock().now().to_msg()
         t = self.get_clock().now().nanoseconds / 1e9
 
-        # A. Pose
         msg_pose = PoseStamped()
         msg_pose.header.stamp = timestamp
-        msg_pose.header.frame_id = self.frame_id
+        msg_pose.header.frame_id = current_ref_frame
 
-        msg_pose.pose.position.x = self.filters['x'](pose[0], t)
-        msg_pose.pose.position.y = self.filters['y'](pose[1], t)
-        msg_pose.pose.position.z = self.filters['z'](pose[2], t)
-        msg_pose.pose.orientation.x = pose[3]
-        msg_pose.pose.orientation.y = pose[4]
-        msg_pose.pose.orientation.z = pose[5]
-        msg_pose.pose.orientation.w = pose[6]
+        msg_pose.pose.position.x = self.filters['x'](final_pose[0], t) * self.linear_scale
+        msg_pose.pose.position.y = self.filters['y'](final_pose[1], t) * self.linear_scale
+        msg_pose.pose.position.z = self.filters['z'](final_pose[2], t) * self.linear_scale
 
+        msg_pose.pose.orientation.x = final_pose[3]
+        msg_pose.pose.orientation.y = final_pose[4]
+        msg_pose.pose.orientation.z = final_pose[5]
+        msg_pose.pose.orientation.w = final_pose[6]
         self.pub_pose.publish(msg_pose)
 
-        # B. Buttons
         msg_joy = JointState()
         msg_joy.header.stamp = timestamp
-        msg_joy.header.frame_id = self.frame_id
-        msg_joy.name = ['trigger', 'trackpad_x', 'trackpad_y',
-                        'grip', 'menu', 'trackpad_touched', 'trackpad_pressed']
+        msg_joy.header.frame_id = current_ref_frame
+        msg_joy.name = ['trigger', 'trackpad_x', 'trackpad_y', 'grip', 'menu', 'trackpad_touched', 'trackpad_pressed']
         msg_joy.position = [
             float(inputs.get('trigger', 0.0)),
             float(inputs.get('trackpad_x', 0.0)),
@@ -197,15 +298,12 @@ class ViveDriverNode(Node):
         ]
         self.pub_joy.publish(msg_joy)
 
-        # C. Visualization
-        # We publish this occasionally so RViz always shows the red box
-        # Only update marker when interacting to save bandwidth
         if inputs.get('trackpad_touched', False):
-            self.publish_workspace_marker()
+            self.publish_workspace_marker(current_ref_frame)
 
-    def publish_workspace_marker(self):
+    def publish_workspace_marker(self, frame_id):
         m = Marker()
-        m.header.frame_id = self.frame_id
+        m.header.frame_id = frame_id
         m.header.stamp = self.get_clock().now().to_msg()
         m.ns = "workspace_limit"
         m.id = 0
@@ -218,9 +316,8 @@ class ViveDriverNode(Node):
         m.pose.position.y = (self.ws['y_max'] + self.ws['y_min']) / 2.0
         m.pose.position.z = (self.ws['z_max'] + self.ws['z_min']) / 2.0
         m.pose.orientation.w = 1.0
-        m.color.r, m.color.g, m.color.b, m.color.a = 1.0, 0.0, 0.0, 0.15  # Red Transparent
+        m.color.r, m.color.g, m.color.b, m.color.a = 1.0, 0.0, 0.0, 0.15
         self.pub_marker.publish(m)
-
 
 def main():
     rclpy.init()
@@ -231,7 +328,6 @@ def main():
         pass
     node.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

@@ -21,7 +21,7 @@ def generate_launch_description():
         description='Serial number for the left controller'
     )
     linear_scale_arg = DeclareLaunchArgument(
-        'linear_scale', default_value='1.0',
+        'linear_scale', default_value='0.5o',
         description='Linear scaling for both controllers'
     )
     publish_frequency_arg = DeclareLaunchArgument(
@@ -54,10 +54,9 @@ def generate_launch_description():
             'button_state_topic': '/vive/left/joint_states',
             'output_topic': '/vive/left/output_pose',
             'publish_frequency': LaunchConfiguration('publish_frequency'),
-            'target_frame': LaunchConfiguration('target_frame_left', default='opensot/gripper_left_grasping_frame'),
+            'target_frame': LaunchConfiguration('target_frame_left', default='opensot/gripper_left_grasping_link'),
             'reference_frame': LaunchConfiguration('reference_frame'),
-            'rotation_offset': [0.0, 0.0, 0.0], # Standard Tiago mapping
-
+            'rotation_offset': [180.0, 0.0, 0.0],
             'trigger_topic': '/vive/left/trigger',
             'trackpad_x_topic': '/vive/left/trackpad_x',
             'trackpad_y_topic': '/vive/left/trackpad_y',
@@ -79,10 +78,9 @@ def generate_launch_description():
             'button_state_topic': '/vive/right/joint_states',
             'output_topic': '/vive/right/output_pose',
             'publish_frequency': LaunchConfiguration('publish_frequency'),
-            'target_frame': LaunchConfiguration('target_frame_right', default='opensot/gripper_right_grasping_frame'),
+            'target_frame': LaunchConfiguration('target_frame_right', default='opensot/gripper_right_grasping_link'),
             'reference_frame': LaunchConfiguration('reference_frame'),
-            'rotation_offset': [0.0, 0.0, 0.0], # Standard Tiago mapping
-
+            'rotation_offset': [180.0, 0.0, 0.0],
             'trigger_topic': '/vive/right/trigger',
             'trackpad_x_topic': '/vive/right/trackpad_x',
             'trackpad_y_topic': '/vive/right/trackpad_y',

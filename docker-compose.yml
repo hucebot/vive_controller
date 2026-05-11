@@ -1,5 +1,16 @@
-services:
+# ── RULE: Common Environment Variables ─────────────────────────────────────
+x-common-env: &common_env
+  DISPLAY: ${DISPLAY}
+  NVIDIA_DRIVER_CAPABILITIES: all
+  XDG_RUNTIME_DIR: ${XDG_RUNTIME_DIR}
+  QT_X11_NO_MITSHM: 1
 
+# ── RULE: ROS Environment Variables ────────────────────────────────────────
+x-ros-env: &ros_env
+  ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-1}
+  RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+
+services:
   # ── bimanual: bimanual tracker (left + right) ─────────────────────────────
   bimanual_vive_tracker:
     profiles: [bimanual]
@@ -17,14 +28,9 @@ services:
     pid: host
     privileged: true
     environment:
-      - DISPLAY=${DISPLAY}
-      - NVIDIA_DRIVER_CAPABILITIES=all
-      - XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}
-      - QT_X11_NO_MITSHM=1
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-1}
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - HAND_OFFSET_LEFT=${HAND_OFFSET_LEFT:-[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]}
-      - HAND_OFFSET_RIGHT=${HAND_OFFSET_RIGHT:-[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]}
+      <<: [*common_env, *ros_env]
+      HAND_OFFSET_LEFT: ${HAND_OFFSET_LEFT:-[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]}
+      HAND_OFFSET_RIGHT: ${HAND_OFFSET_RIGHT:-[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]}
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - /dev:/dev
@@ -73,13 +79,8 @@ services:
     pid: host
     privileged: true
     environment:
-      - DISPLAY=${DISPLAY}
-      - NVIDIA_DRIVER_CAPABILITIES=all
-      - XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR}
-      - QT_X11_NO_MITSHM=1
-      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-1}
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - HAND_OFFSET=${HAND_OFFSET:-[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]}
+      <<: [*common_env, *ros_env]
+      HAND_OFFSET: ${HAND_OFFSET:-[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]}
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - /dev:/dev
@@ -109,3 +110,105 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+  # ── COMMON BASE: for controllers ──────────────────────────────────────────
+  base_robot: &base_robot
+    image: ${REGISTRY:-registry.gitlab.inria.fr/eurobin-horizon/code/vive_controller_tiago}/vive-controller:${TAG:-latest}
+    build:
+      context: .
+      dockerfile: .ci/Dockerfile
+      target: app
+      args:
+        STEAM_USER: ${STEAM_USER}
+        STEAM_PASSWORD: ${STEAM_PASSWORD}
+    network_mode: host
+    ipc: host
+    pid: host
+    privileged: true
+    environment:
+      <<: [*common_env, *ros_env]
+      CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/cyclonedds.xml
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /dev:/dev
+      - /run/udev:/run/udev
+      - ./config/steamvr_config/openvrpaths.vrpath:/root/.config/openvr/openvrpaths.vrpath
+      - ./config/steamvr_config/default_driver_null:/home/steam/Steam/steamapps/common/SteamVR/drivers/null/resources/settings/default.vrsettings
+      - ./config/steamvr_config/default_resources:/home/steam/Steam/steamapps/common/SteamVR/resources/settings/default.vrsettings
+      - ./ros2_vive_controller:/ros2_ws/src/ros2_vive_controller/ros2_vive_controller
+      - ./launch:/ros2_ws/src/ros2_vive_controller/launch
+      - ./config:/ros2_ws/src/ros2_vive_controller/config
+      - ./rviz:/ros2_ws/src/ros2_vive_controller/rviz
+      - ./assets:/ros2_ws/src/ros2_vive_controller/assets
+      - ./setup.py:/ros2_ws/src/ros2_vive_controller/setup.py
+    working_dir: /ros2_ws
+    entrypoint: ["/entrypoint.sh"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # ── FRANKA: (Single Arm) ────────────────────────────────────────────────
+  franka:
+    <<: *base_robot
+    profiles: [franka]
+    container_name: ros2_vive_franka
+    env_file:
+      - .env
+    environment:
+      <<: [*common_env, *ros_env]
+      CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/franka_cyclonedds.xml
+    command: >
+      ros2 launch ros2_vive_controller franka_single.launch.py
+      serial_right:=${SERIAL_RIGHT:-LHR-9ABF6D66}
+      reference_lighthouse_serial:=${REFERENCE_LIGHTHOUSE_SERIAL:-}
+      only_right:=true
+      linear_scale:=${LINEAR_SCALE:-2.0}
+
+  # ── TIAGO (Dual Arm) ─────────────────────────────────────────────────────
+  tiago:
+    <<: *base_robot
+    profiles: [tiago]
+    container_name: ros2_vive_tiago
+    env_file: .env
+    environment:
+      <<: [*common_env, *ros_env]
+      CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/tiago_cyclonedds.xml
+    command: >
+      ros2 launch ros2_vive_controller tiago_dual.launch.py
+      serial_left:=${SERIAL_LEFT:-LHR-97752221}
+      serial_right:=${SERIAL_RIGHT:-LHR-9ABF6D66}
+      linear_scale:=${LINEAR_SCALE:-1.0}
+
+  # ── TIAGO (Dual Arm) ─────────────────────────────────────────────────────
+  tiago_pro:
+    <<: *base_robot
+    profiles: [tiago_pro]
+    container_name: ros2_vive_tiago_pro
+    env_file: .env
+    environment:
+      <<: [*common_env, *ros_env]
+      CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/tiago_cyclonedds.xml
+    command: >
+      ros2 launch ros2_vive_controller tiago_pro.launch.py
+      serial_left:=${SERIAL_LEFT:-LHR-97752221}
+      serial_right:=${SERIAL_RIGHT:-LHR-9ABF6D66}
+      linear_scale:=${LINEAR_SCALE:-1.0}
+
+
+  # ── G1 (Dual Arm) ────────────────────────────────────────────────────────
+  g1:
+    <<: *base_robot
+    profiles: [g1]
+    container_name: ros2_vive_g1
+    environment:
+      <<: [*common_env, *ros_env]
+      CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/cyclonedds.xml
+    command: >
+      ros2 launch ros2_vive_controller g1_dual.launch.py
+      serial_left:=${SERIAL_LEFT:-LHR-97752221}
+      serial_right:=${SERIAL_RIGHT:-LHR-9ABF6D66}
+      linear_scale:=${LINEAR_SCALE:-1.0}
