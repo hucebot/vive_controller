@@ -3,6 +3,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, PointStamped  # Added PointStamped
 from sensor_msgs.msg import JointState
+from std_msgs.msg import Bool
 from tf2_ros import Buffer, TransformListener
 from scipy.spatial.transform import Rotation as R
 from rclpy.duration import Duration
@@ -21,6 +22,8 @@ class TeleopBridgeNode(Node):
         self.declare_parameter('reference_frame', 'world')
         self.declare_parameter('rotation_offset', [0.0, 0.0, 0.0]) # [R, P, Y] in degrees
         self.declare_parameter('trackpad_pressed_required', 'false')
+        # Shared Bool topic that gates output for BOTH bridge nodes at once.
+        self.declare_parameter('enable_topic', '/bleu/vive_controller/enable_teleop')
 
         self.button_keys = [
             'trigger', 'trackpad_x', 'trackpad_y',
@@ -52,6 +55,8 @@ class TeleopBridgeNode(Node):
         self.prev_button_state = None
         self.activated = False
         self.last_output_msg = None
+        # When False the node still consumes inputs but emits nothing (hard stop).
+        self.publishing_enabled = True
         self.trackpad_pressed_required = self.get_parameter('trackpad_pressed_required').value.lower() == 'true'
         # --- 4. Subscribers ---
         self.pose_sub = self.create_subscription(
@@ -60,6 +65,12 @@ class TeleopBridgeNode(Node):
         self.button_state_sub = self.create_subscription(
             JointState, self.get_parameter('button_state_topic').value, self.button_state_callback, 10)
 
+        # Start/stop trigger. A single Bool on this (absolute) topic reaches
+        # both teleop bridge nodes: True reboots the reference and resumes
+        # publishing, False stops publishing entirely.
+        self.enable_sub = self.create_subscription(
+            Bool, self.get_parameter('enable_topic').value, self.enable_callback, 10)
+
         # --- 5. Timer ---
         freq = self.get_parameter('publish_frequency').value
         if freq > 0:
@@ -67,6 +78,8 @@ class TeleopBridgeNode(Node):
 
     def button_state_callback(self, msg):
         """Store button state, handle activation clutch, and publish individual PointStamped topics"""
+        if not self.publishing_enabled:
+            return
         self.latest_button_state = msg
         button_data = {name: pos for name, pos in zip(msg.name, msg.position)}
 
@@ -122,6 +135,28 @@ class TeleopBridgeNode(Node):
         except Exception as e:
             self.get_logger().warn(f'Activation failed: {e}')
 
+    def reset_reference(self):
+        """Drop all teleop reference state, returning the node to its just-launched
+        condition so the next clutch press captures a brand-new reference."""
+        self.ee_translation = None
+        self.joy_translation = None
+        self.prev_button_state = None
+        self.activated = False
+        self.last_output_msg = None
+
+    def enable_callback(self, msg):
+        """Start/stop publishing via the shared Bool trigger topic.
+
+        Enabling always reboots the reference first, so resuming after a stop
+        never continues from the pre-stop reference."""
+        if msg.data and not self.publishing_enabled:
+            self.reset_reference()
+            self.publishing_enabled = True
+            self.get_logger().info('Teleop publishing ENABLED — reference rebooted.')
+        elif not msg.data and self.publishing_enabled:
+            self.publishing_enabled = False
+            self.get_logger().info('Teleop publishing DISABLED — output stopped.')
+
     def pose_callback(self, msg):
         self.latest_pose = msg
         if self.get_parameter('publish_frequency').value <= 0:
@@ -132,6 +167,8 @@ class TeleopBridgeNode(Node):
 
     def publish_pose(self):
         """Compute delta from reference and publish updated pose"""
+        if not self.publishing_enabled:
+            return
         output_msg = None
 
         if self.latest_pose and self.activated:
