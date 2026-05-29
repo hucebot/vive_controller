@@ -27,6 +27,7 @@ services:
       - QT_X11_NO_MITSHM=1
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-1}
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - "CYCLONEDDS_URI=<CycloneDDS><Domain><Discovery><MaxAutoParticipantIndex>50</MaxAutoParticipantIndex></Discovery></Domain></CycloneDDS>"
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - /dev:/dev
@@ -75,6 +76,7 @@ services:
       - QT_X11_NO_MITSHM=1
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-1}
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - "CYCLONEDDS_URI=<CycloneDDS><Domain><Discovery><MaxAutoParticipantIndex>50</MaxAutoParticipantIndex></Discovery></Domain></CycloneDDS>"
       - HAND_OFFSET_LEFT=${HAND_OFFSET_LEFT:-[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]}
       - HAND_OFFSET_RIGHT=${HAND_OFFSET_RIGHT:-[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]}
     volumes:
@@ -131,6 +133,7 @@ services:
       - QT_X11_NO_MITSHM=1
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-1}
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - "CYCLONEDDS_URI=<CycloneDDS><Domain><Discovery><MaxAutoParticipantIndex>50</MaxAutoParticipantIndex></Discovery></Domain></CycloneDDS>"
       - HAND_OFFSET=${HAND_OFFSET:-[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]}
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
