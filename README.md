@@ -35,6 +35,9 @@ A unified ROS 2 driver and teleoperation bridge for HTC Vive hardware (Controlle
 
 ## ⚙️ Configuration
 
+
+### 1. .env file
+
 This project relies on a `.env` file to map your specific hardware to the Docker containers.
 
 1. Copy the template file:
@@ -60,6 +63,31 @@ This project relies on a `.env` file to map your specific hardware to the Docker
    ```
    > **Tip:** Don't know your serial numbers? Run `make identify` once the container is running to vibrate the controllers and verify which is which!
    > Otherwise, you can run `sudo dmesg -w | grep "LHR"` for the controllers or `sudo dmesg -w | grep "LHB"` for the base stations while plugging them in to see their serial numbers in real time.
+
+### 2. DDS Network Interface Name
+
+Depending on the network interface used on your machine, you need to update the interface used by Cyclone DDS. For example, when using the Tiago Pro, edit both the `cyclonedds.xml` and `tiago_cyclonedds.xml` files.
+
+Replace the following line with the name of your network interface:
+
+```xml
+<NetworkInterface name="enx607d09178f25" />
+```
+
+You can find your network interface name by running:
+
+```bash
+ip addr
+```
+
+or
+
+```bash
+ip link
+```
+
+Then replace `enx607d09178f25` with your interface name (e.g., `eno2`, `enp3s0`, `wlp2s0`, etc.).
+
 
 ---
 
