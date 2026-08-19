@@ -17,7 +17,7 @@ class TeleopBridgeNode(Node):
         self.declare_parameter('button_state_topic', '/vive/button_state')
         self.declare_parameter('output_topic', '/vive/output_pose')
         self.declare_parameter('publish_frequency', 30.0)
-        self.declare_parameter('target_frame', 'base_link')
+        self.declare_parameter('target_frame', 'torso_lift_link')
         self.declare_parameter('reference_frame', 'world')
         self.declare_parameter('rotation_offset', [0.0, 0.0, 0.0]) # [R, P, Y] in degrees
         self.declare_parameter('trackpad_pressed_required', 'false')
