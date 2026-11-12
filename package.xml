@@ -4,7 +4,7 @@
   <name>ros2_vive_controller</name>
   <version>0.0.0</version>
   <description>ROS 2 driver and teleoperation bridge for HTC Vive controllers, trackers and base stations (OpenVR / SteamVR).</description>
-  <maintainer email="cdonoso@todo.todo">cdonoso</maintainer>
+  <maintainer email="dionis.totsila@inria.fr">dtotsila</maintainer>
   <license>MIT</license>
 
   <exec_depend>rclpy</exec_depend>
