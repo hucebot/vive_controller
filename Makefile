@@ -53,9 +53,10 @@ g1: gui-perms ## Start G1 Dual Arm
 	docker compose --profile g1 up
 
 # --- Utilities ---
-calibrate: gui-perms ## Run workspace calibration
-	# Runs calibration inside the franka container context
-	docker compose --profile franka run --rm franka ros2 launch ros2_vive_controller calibration.launch.py
+calibrate: gui-perms ## Paint the workspace fence with the right controller (writes config/workspace.yaml)
+	# Runs calibration inside the franka container context, in the same frame as teleop
+	docker compose --profile franka run --rm franka ros2 launch ros2_vive_controller calibration.launch.py \
+		serial:=$(strip $(SERIAL_RIGHT)) reference_lighthouse_serial:=$(strip $(REFERENCE_LIGHTHOUSE_SERIAL))
 
 identify: ## Vibrate controllers to check IDs
 	@echo "Vibrating RIGHT controller..."

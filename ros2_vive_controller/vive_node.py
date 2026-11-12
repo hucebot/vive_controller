@@ -4,6 +4,7 @@ import rclpy
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from std_msgs.msg import Bool
 from sensor_msgs.msg import JointState
@@ -12,6 +13,7 @@ from std_srvs.srv import Trigger
 from tf2_ros import TransformBroadcaster
 from OneEuroFilter import OneEuroFilter
 from ros2_vive_controller.openvr_class.openvr_class import triad_openvr
+from ros2_vive_controller.workspace import OUTSIDE, WARNING, classify
 
 class ViveDriverNode(Node):
     def __init__(self):
@@ -27,6 +29,10 @@ class ViveDriverNode(Node):
                 ('allow_invalid_lighthouse_pose', False),
                 ('frame_id', 'vive_world'),
                 ('linear_scale', 1.0),
+                # Fence written by `make calibrate` (config/workspace.yaml). Off until calibrated.
+                ('workspace.enabled', False),
+                # Frame the fence was calibrated in; the fence turns off if poses are in another one.
+                ('workspace.frame_id', ''),
                 ('workspace.x_min', -1.0), ('workspace.x_max', 1.0),
                 ('workspace.y_min', -1.0), ('workspace.y_max', 1.0),
                 ('workspace.z_min', 0.0),  ('workspace.z_max', 2.0),
@@ -50,7 +56,9 @@ class ViveDriverNode(Node):
             'y_max': self.get_parameter('workspace.y_max').value,
             'z_min': self.get_parameter('workspace.z_min').value,
             'z_max': self.get_parameter('workspace.z_max').value,
-            'pad': self.get_parameter('workspace.padding').value
+            'pad': self.get_parameter('workspace.padding').value,
+            'enabled': self.get_parameter('workspace.enabled').value,
+            'frame_id': self.get_parameter('workspace.frame_id').value,
         }
 
         # Lighthouse 2.0 base stations flag their pose as invalid although it is calibrated.
@@ -69,7 +77,9 @@ class ViveDriverNode(Node):
         self.srv_identify = self.create_service(Trigger, 'identify', self.identify_callback)
         self.pub_pose = self.create_publisher(PoseStamped, 'pose', 10)
         self.pub_joy = self.create_publisher(JointState, 'joint_states', 10)
-        self.pub_marker = self.create_publisher(Marker, 'workspace_marker', 10)
+        # Transient local: RViz gets the fence even when it starts after the driver.
+        self.pub_marker = self.create_publisher(
+            Marker, 'workspace_marker', QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.tf_broadcaster = TransformBroadcaster(self)
 
         # --- State Variables ---
@@ -85,7 +95,11 @@ class ViveDriverNode(Node):
         self.create_timer(0.02, self.update)
         # Haptics get their own timer so that buzzing never blocks the pose loop.
         self.create_timer(0.01, self._haptic_tick)
-        self.publish_workspace_marker(self.frame_id)
+        self._marker_frame = None
+        self._fence_mismatch_frame = None
+        if self.ws['enabled']:
+            self.get_logger().info(
+                f"Workspace fence enabled (frame '{self.ws['frame_id'] or 'any'}', warning band {self.ws['pad']} m).")
 
     def identify_callback(self, request, response):
         if self.vr.get_device_by_serial(self.serial) is None:
@@ -186,18 +200,21 @@ class ViveDriverNode(Node):
         }
         return {axis: OneEuroFilter(**params) for axis in ['x', 'y', 'z']}
 
-    def check_workspace_and_vibrate(self, pos, device):
-        x, y, z = pos
-        pad = self.ws['pad']
-        in_bounds = (
-            self.ws['x_min'] + pad < x < self.ws['x_max'] - pad and
-            self.ws['y_min'] + pad < y < self.ws['y_max'] - pad and
-            self.ws['z_min'] + pad < z < self.ws['z_max'] - pad
-        )
-        if not in_bounds:
-            device.trigger_haptic_pulse(2000)
-            return False
-        return True
+    def _fence_state(self, position, frame):
+        """None when the fence is off, else INSIDE, WARNING or OUTSIDE (see workspace.py)."""
+        if not self.ws['enabled'] or self.is_calibrating:
+            return None
+        if self.ws['frame_id'] and self.ws['frame_id'] != frame:
+            if self._fence_mismatch_frame != frame:
+                self._fence_mismatch_frame = frame
+                self.get_logger().warn(
+                    f"Workspace fence was calibrated in '{self.ws['frame_id']}' but poses are in '{frame}': "
+                    f"fence disabled. Run 'make calibrate' again with the same reference lighthouse.")
+            return None
+        if frame != self._marker_frame:
+            self.publish_workspace_marker(frame)
+            self._marker_frame = frame
+        return classify(position, self.ws, self.ws['pad'])
 
     def _compute_relative_pose(self, target_pose, reference_pose):
         """Transforms target_pose into the coordinate frame of reference_pose."""
@@ -301,29 +318,31 @@ class ViveDriverNode(Node):
         if current_ref_frame == world_frame:
             self.tf_broadcaster.sendTransform(self._make_tf(final_pose, world_frame, controller_frame))
 
-        # --- Safety Check ---
-        raw_pos = final_pose[0:3]
-        if not self.is_calibrating:
-            if not self.check_workspace_and_vibrate(raw_pos, controller):
-                return
+        # --- Workspace fence ---
+        # Warning band: vibrate but keep publishing. Outside: vibrate and hold the pose back (the
+        # teleop bridge then disengages). Buttons are always published so a clutch release is never missed.
+        fence = self._fence_state(final_pose[0:3], current_ref_frame)
+        if fence in (WARNING, OUTSIDE):
+            controller.trigger_haptic_pulse(2000)
 
         # --- Publish Data ---
         timestamp = self.get_clock().now().to_msg()
         t = self.get_clock().now().nanoseconds / 1e9
 
-        msg_pose = PoseStamped()
-        msg_pose.header.stamp = timestamp
-        msg_pose.header.frame_id = current_ref_frame
+        if fence != OUTSIDE:
+            msg_pose = PoseStamped()
+            msg_pose.header.stamp = timestamp
+            msg_pose.header.frame_id = current_ref_frame
 
-        msg_pose.pose.position.x = self.filters['x'](final_pose[0], t) * self.linear_scale
-        msg_pose.pose.position.y = self.filters['y'](final_pose[1], t) * self.linear_scale
-        msg_pose.pose.position.z = self.filters['z'](final_pose[2], t) * self.linear_scale
+            msg_pose.pose.position.x = self.filters['x'](final_pose[0], t) * self.linear_scale
+            msg_pose.pose.position.y = self.filters['y'](final_pose[1], t) * self.linear_scale
+            msg_pose.pose.position.z = self.filters['z'](final_pose[2], t) * self.linear_scale
 
-        msg_pose.pose.orientation.x = final_pose[3]
-        msg_pose.pose.orientation.y = final_pose[4]
-        msg_pose.pose.orientation.z = final_pose[5]
-        msg_pose.pose.orientation.w = final_pose[6]
-        self.pub_pose.publish(msg_pose)
+            msg_pose.pose.orientation.x = final_pose[3]
+            msg_pose.pose.orientation.y = final_pose[4]
+            msg_pose.pose.orientation.z = final_pose[5]
+            msg_pose.pose.orientation.w = final_pose[6]
+            self.pub_pose.publish(msg_pose)
 
         msg_joy = JointState()
         msg_joy.header.stamp = timestamp
@@ -339,9 +358,6 @@ class ViveDriverNode(Node):
             float(inputs.get('trackpad_pressed', False))
         ]
         self.pub_joy.publish(msg_joy)
-
-        if inputs.get('trackpad_touched', False):
-            self.publish_workspace_marker(current_ref_frame)
 
     def publish_workspace_marker(self, frame_id):
         m = Marker()

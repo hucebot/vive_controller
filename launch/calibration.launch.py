@@ -8,22 +8,24 @@ from launch.substitutions import LaunchConfiguration
 def generate_launch_description():
     pkg_share = get_package_share_directory('ros2_vive_controller')
     rviz_config = os.path.join(pkg_share, 'rviz', 'calibration.rviz')
+    vive_params_file = os.path.join(pkg_share, 'config', 'vive.params.yaml')
 
-    # Path to the SOURCE yaml so changes persist after container restart
-    default_config_path = '/ros2_ws/src/ros2_vive_controller/config/vive.params.yaml'
-
-    # --- Hardcoded Driver Params (For Calibration Convenience) ---
-    driver_params = {
-        'side': 'right',
-        'serial': 'LHR-4BB3817E',
-        'frame_id': 'vive_world'
-    }
+    # Written to the SOURCE tree so it persists after a container restart
+    default_workspace_file = '/ros2_ws/src/ros2_vive_controller/config/workspace.yaml'
 
     return LaunchDescription([
         DeclareLaunchArgument(
-            'config_path',
-            default_value=default_config_path,
-            description='Path to vive.params.yaml'
+            'serial', default_value='',
+            description='Serial of the controller used to paint (SERIAL_RIGHT in .env)'
+        ),
+        DeclareLaunchArgument(
+            'reference_lighthouse_serial', default_value='',
+            description='Use the same value as when teleoperating, so the fence is in the same frame'
+        ),
+        DeclareLaunchArgument(
+            'workspace_file',
+            default_value=default_workspace_file,
+            description='Where to write the calibrated workspace fence'
         ),
 
         # 1. THE DRIVER (The Data Source)
@@ -34,7 +36,12 @@ def generate_launch_description():
             name='calibration_driver_right',
             namespace='vive/right',
             output='screen',
-            parameters=[driver_params]
+            parameters=[
+                vive_params_file,
+                {'side': 'right',
+                 'serial': LaunchConfiguration('serial'),
+                 'reference_lighthouse_serial': LaunchConfiguration('reference_lighthouse_serial')}
+            ]
         ),
 
         # 2. THE CALIBRATION NODE (The Data Processor)
@@ -44,8 +51,7 @@ def generate_launch_description():
             name='calibration_node',
             output='screen',
             parameters=[{
-                'target_frame': 'vive_world',
-                'config_path': LaunchConfiguration('config_path')
+                'workspace_file': LaunchConfiguration('workspace_file')
             }]
         ),
 

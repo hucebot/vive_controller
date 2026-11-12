@@ -89,6 +89,19 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /vive/right/pose
       Value: true
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Workspace Fence
+      Namespaces:
+        {}
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /vive/right/workspace_marker
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48

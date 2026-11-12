@@ -12,6 +12,10 @@
 #### Tiago specific cyclonedds
 config/cyclonedds.xml
 
+#### Workspace fence written by `make calibrate` (local to each setup)
+config/workspace.yaml
+config/*.bak
+
 ####### PYTHON.gitignore #######
 # Byte-compiled / optimized / DLL files
 __pycache__/

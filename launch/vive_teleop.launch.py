@@ -6,12 +6,30 @@ from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
+
+def calibrated_workspace_file(pkg_share):
+    """The fence written by `make calibrate`, if there is one.
+
+    The source tree is checked first: with --symlink-install, a file created after the build
+    does not show up in the package's share directory.
+    """
+    for path in ('/ros2_ws/src/ros2_vive_controller/config/workspace.yaml',
+                 os.path.join(pkg_share, 'config', 'workspace.yaml')):
+        if os.path.isfile(path):
+            return path
+    return None
+
+
 def generate_launch_description():
     pkg_share = get_package_share_directory('ros2_vive_controller')
 
     rviz_filename = 'view_vive.rviz'
     rviz_config = os.path.join(pkg_share, 'rviz', rviz_filename)
-    vive_params_file = os.path.join(pkg_share, 'config', 'vive.params.yaml')
+    # Defaults first, then the calibrated fence (if any) overrides them.
+    vive_params_files = [os.path.join(pkg_share, 'config', 'vive.params.yaml')]
+    workspace_file = calibrated_workspace_file(pkg_share)
+    if workspace_file:
+        vive_params_files.append(workspace_file)
 
     return LaunchDescription([
         DeclareLaunchArgument('rviz', default_value='true'),
@@ -41,7 +59,7 @@ def generate_launch_description():
             output='screen',
             condition=UnlessCondition(LaunchConfiguration('only_right')),
             parameters=[
-                vive_params_file,
+                *vive_params_files,
                 {'side': 'left',
                  'linear_scale': LaunchConfiguration('linear_scale'),
                  'serial': LaunchConfiguration('serial_left'),
@@ -58,7 +76,7 @@ def generate_launch_description():
                 namespace='vive/right',
                 output='screen',
                 parameters=[
-                    vive_params_file,
+                    *vive_params_files,
                     {'side': 'right',
                      'linear_scale': LaunchConfiguration('linear_scale'),
                      'serial': LaunchConfiguration('serial_right'),

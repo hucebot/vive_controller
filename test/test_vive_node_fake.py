@@ -196,3 +196,69 @@ def test_tracker_node_survives_a_power_cycle(vr_system):
         node.destroy_node()
     finally:
         rclpy.shutdown()
+
+
+def _fence_params(position, offsets, frame='vive_world', padding=0.1):
+    """Fence params around the published position of a controller at raw `position`.
+
+    offsets: (low, high) distance of the fence faces from the published x coordinate.
+    """
+    from fake_openvr import translation_matrix
+    from ros2_vive_controller.openvr_class.openvr_class import convert_to_quaternion
+    px, py, pz = convert_to_quaternion(translation_matrix(*position))[:3]
+    return {
+        'workspace.enabled': True, 'workspace.frame_id': frame, 'workspace.padding': padding,
+        'workspace.x_min': px - offsets[0], 'workspace.x_max': px + offsets[1],
+        'workspace.y_min': py - 1.0, 'workspace.y_max': py + 1.0,
+        'workspace.z_min': pz - 1.0, 'workspace.z_max': pz + 1.0,
+    }
+
+
+RIGHT_POSITION = (-0.1, 1.0, 0.2)
+
+
+def _fence_pulses(vr_system):
+    return [p for p in vr_system.pulses_for(2) if p[2] == 2000]
+
+
+def test_fence_inside_publishes_without_vibrating(vr_system, driver):
+    _plug_controllers(vr_system)
+    node = driver(side='right', serial='LHR-RIGHT', **_fence_params(RIGHT_POSITION, (0.5, 0.5)))
+    node.update()
+    assert len(node.pub_pose.messages) == 1
+    assert _fence_pulses(vr_system) == []
+
+
+def test_fence_warning_band_vibrates_but_still_publishes(vr_system, driver):
+    _plug_controllers(vr_system)
+    node = driver(side='right', serial='LHR-RIGHT', **_fence_params(RIGHT_POSITION, (0.05, 0.5)))
+    node.update()
+    assert len(node.pub_pose.messages) == 1
+    assert len(_fence_pulses(vr_system)) == 1
+
+
+def test_fence_outside_holds_the_pose_but_not_the_buttons(vr_system, driver):
+    _plug_controllers(vr_system)
+    node = driver(side='right', serial='LHR-RIGHT', **_fence_params(RIGHT_POSITION, (-0.2, 0.5)))
+    node.update()
+    assert node.pub_pose.messages == []
+    assert len(node.pub_joy.messages) == 1          # the clutch release must still get through
+    assert len(_fence_pulses(vr_system)) == 1
+
+
+def test_fence_calibrated_in_another_frame_is_ignored(vr_system, driver):
+    _plug_controllers(vr_system)
+    node = driver(side='right', serial='LHR-RIGHT',
+                  **_fence_params(RIGHT_POSITION, (-0.2, 0.5), frame='lighthouse_origin'))
+    node.update()
+    node.update()
+    assert len(node.pub_pose.messages) == 2
+    assert node.log.text('warn').count("calibrated in 'lighthouse_origin'") == 1
+
+
+def test_fence_is_off_while_calibrating(vr_system, driver):
+    _plug_controllers(vr_system)
+    node = driver(side='right', serial='LHR-RIGHT', **_fence_params(RIGHT_POSITION, (-0.2, 0.5)))
+    node.is_calibrating = True
+    node.update()
+    assert len(node.pub_pose.messages) == 1
