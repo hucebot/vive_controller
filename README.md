@@ -63,7 +63,7 @@ This project relies on a `.env` file to map your specific hardware to the Docker
    ```
    > **`.env` is the only place serials are set.** The launch files and `docker-compose.yml` no longer fall back to hardcoded serials, so each machine's `.env` (including the G1 one) must list its own controllers.
    >
-   > **Tip:** Don't know your serial numbers? Start the drivers (`make drivers`) with an empty or wrong serial: the driver logs every connected controller and tracker with its serial. Then run `make identify` to vibrate the configured controllers and check which is which.
+   > **Tip:** Don't know your serial numbers? Run `make identify` (no robot needed): it lists every controller, tracker and base station SteamVR sees with its serial, battery and `.env` role, then vibrates each controller in turn so you can tell which is which.
    > Otherwise, you can run `sudo dmesg -w | grep "LHR"` for the controllers or `sudo dmesg -w | grep "LHB"` for the base stations while plugging them in to see their serial numbers in real time.
 
 ### 2. DDS Network Interface Name
@@ -120,7 +120,7 @@ make g1          # Start Unitree G1 (Dual Arm Humanoid)
 Manage the lifecycle and hardware with these helper commands:
 ```bash
 make drivers     # Starts only the Vive drivers + RViz (no robot), e.g. to check the controllers
-make identify    # Vibrates the right, then the left controller of the running container
+make identify    # Lists the connected Vive devices and vibrates each controller (no robot needed)
 make calibrate   # Paints the workspace fence with the right controller (see "Virtual Safety Fence")
 make stop        # Safely shuts down running containers
 make clean       # Removes all containers and orphans

@@ -64,14 +64,16 @@ calibrate: gui-perms ## Paint the workspace fence with the right controller (wri
 	docker compose --profile drivers run --rm drivers ros2 launch ros2_vive_controller calibration.launch.py \
 		serial:=$(strip $(SERIAL_RIGHT)) reference_lighthouse_serial:=$(strip $(REFERENCE_LIGHTHOUSE_SERIAL))
 
-identify: ## Vibrate the right, then the left controller of the running vive container
+IDENTIFY_ENV := -e SERIAL_RIGHT="$(strip $(SERIAL_RIGHT))" -e SERIAL_LEFT="$(strip $(SERIAL_LEFT))" \
+	-e REFERENCE_LIGHTHOUSE_SERIAL="$(strip $(REFERENCE_LIGHTHOUSE_SERIAL))"
+
+identify: ## List the connected Vive devices and vibrate each controller (no robot needed)
 	@c=$$(docker ps --format '{{.Names}}' | grep -m1 -E '^ros2_vive_(franka|tiago|tiago_pro|g1|drivers)$$'); \
-	if [ -z "$$c" ]; then echo "No vive container is running: start one first (e.g. make tiago_pro)."; exit 1; fi; \
-	for side in right left; do \
-		echo "Vibrating $$side controller ($$c)..."; \
-		docker exec $$c /entrypoint.sh timeout 5 ros2 service call /vive/$$side/identify std_srvs/srv/Trigger \
-			|| echo "  no $$side controller (single-arm robot, or the controller is not connected)"; \
-	done
+	if [ -n "$$c" ]; then \
+		docker exec $(IDENTIFY_ENV) $$c /entrypoint.sh python3 -m ros2_vive_controller.identify; \
+	else \
+		docker compose --profile drivers run --rm --no-deps $(IDENTIFY_ENV) drivers python3 -m ros2_vive_controller.identify; \
+	fi
 
 stop: ## Stop all running vive containers
 	docker compose down
