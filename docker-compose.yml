@@ -10,6 +10,48 @@ x-ros-env: &ros_env
   ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-1}
   RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
 
+# ── RULE: Common base for the controller robots ────────────────────────────
+# A template, not a service: as a service without a profile it was started by every
+# `make <robot>` too, adding a second pair of drivers and a second RViz.
+x-base-robot: &base_robot
+  image: ${REGISTRY:-registry.gitlab.inria.fr/eurobin-horizon/code/vive_controller_tiago}/vive-controller:${TAG:-latest}
+  build:
+    context: .
+    dockerfile: .ci/Dockerfile
+    target: app
+    args:
+      STEAM_USER: ${STEAM_USER}
+      STEAM_PASSWORD: ${STEAM_PASSWORD}
+  network_mode: host
+  ipc: host
+  pid: host
+  privileged: true
+  environment:
+    <<: [*common_env, *ros_env]
+    CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/cyclonedds.xml
+  volumes:
+    - /tmp/.X11-unix:/tmp/.X11-unix
+    - /dev:/dev
+    - /run/udev:/run/udev
+    - ./config/steamvr_config/openvrpaths.vrpath:/root/.config/openvr/openvrpaths.vrpath
+    - ./config/steamvr_config/default_driver_null:/home/steam/Steam/steamapps/common/SteamVR/drivers/null/resources/settings/default.vrsettings
+    - ./config/steamvr_config/default_resources:/home/steam/Steam/steamapps/common/SteamVR/resources/settings/default.vrsettings
+    - ./ros2_vive_controller:/ros2_ws/src/ros2_vive_controller/ros2_vive_controller
+    - ./launch:/ros2_ws/src/ros2_vive_controller/launch
+    - ./config:/ros2_ws/src/ros2_vive_controller/config
+    - ./rviz:/ros2_ws/src/ros2_vive_controller/rviz
+    - ./assets:/ros2_ws/src/ros2_vive_controller/assets
+    - ./setup.py:/ros2_ws/src/ros2_vive_controller/setup.py
+  working_dir: /ros2_ws
+  entrypoint: ["/entrypoint.sh"]
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+
 services:
   # ── bimanual: bimanual tracker (left + right) ─────────────────────────────
   bimanual_vive_tracker:
@@ -111,45 +153,17 @@ services:
               count: all
               capabilities: [gpu]
 
-  # ── COMMON BASE: for controllers ──────────────────────────────────────────
-  base_robot: &base_robot
-    image: ${REGISTRY:-registry.gitlab.inria.fr/eurobin-horizon/code/vive_controller_tiago}/vive-controller:${TAG:-latest}
-    build:
-      context: .
-      dockerfile: .ci/Dockerfile
-      target: app
-      args:
-        STEAM_USER: ${STEAM_USER}
-        STEAM_PASSWORD: ${STEAM_PASSWORD}
-    network_mode: host
-    ipc: host
-    pid: host
-    privileged: true
-    environment:
-      <<: [*common_env, *ros_env]
-      CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/cyclonedds.xml
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix
-      - /dev:/dev
-      - /run/udev:/run/udev
-      - ./config/steamvr_config/openvrpaths.vrpath:/root/.config/openvr/openvrpaths.vrpath
-      - ./config/steamvr_config/default_driver_null:/home/steam/Steam/steamapps/common/SteamVR/drivers/null/resources/settings/default.vrsettings
-      - ./config/steamvr_config/default_resources:/home/steam/Steam/steamapps/common/SteamVR/resources/settings/default.vrsettings
-      - ./ros2_vive_controller:/ros2_ws/src/ros2_vive_controller/ros2_vive_controller
-      - ./launch:/ros2_ws/src/ros2_vive_controller/launch
-      - ./config:/ros2_ws/src/ros2_vive_controller/config
-      - ./rviz:/ros2_ws/src/ros2_vive_controller/rviz
-      - ./assets:/ros2_ws/src/ros2_vive_controller/assets
-      - ./setup.py:/ros2_ws/src/ros2_vive_controller/setup.py
-    working_dir: /ros2_ws
-    entrypoint: ["/entrypoint.sh"]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+  # ── DRIVERS ONLY: controllers + RViz, no robot (also used by `make calibrate`) ──
+  drivers:
+    <<: *base_robot
+    profiles: [drivers]
+    container_name: ros2_vive_drivers
+    command: >
+      ros2 launch ros2_vive_controller vive_teleop.launch.py
+      serial_left:=${SERIAL_LEFT:-}
+      serial_right:=${SERIAL_RIGHT:-}
+      reference_lighthouse_serial:=${REFERENCE_LIGHTHOUSE_SERIAL:-}
+      linear_scale:=${LINEAR_SCALE:-1.0}
 
   # ── FRANKA: (Single Arm) ────────────────────────────────────────────────
   franka:

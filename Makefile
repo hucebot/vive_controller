@@ -9,7 +9,7 @@ endif
 SHELL := /bin/bash
 
 # --- Phony Targets ---
-.PHONY: help gui-perms build build-force push franka tiago tiago_pro g1 calibrate identify stop clean
+.PHONY: help gui-perms build build-force push pull drivers franka tiago tiago_pro g1 calibrate identify stop clean
 
 # --- Help ---
 help: ## Show this help message
@@ -17,7 +17,7 @@ help: ## Show this help message
 	@echo "Usage: make <target>"
 	@echo ""
 	@echo "Available commands:"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # --- GUI Permissions ---
 gui-perms: ## Set X11 permissions for Docker UI (used internally)
@@ -25,21 +25,27 @@ gui-perms: ## Set X11 permissions for Docker UI (used internally)
 	@xhost + > /dev/null
 
 # --- Build Targets ---
+# All controller robots share one image, so building/pushing/pulling it through one service is enough.
+IMAGE_SERVICE := drivers
+
 build: ## Build the 'app' image (cached)
-	docker compose build
+	docker compose --profile $(IMAGE_SERVICE) build $(IMAGE_SERVICE)
 
 build-force: ## Build from scratch (no cache)
-	docker compose build --no-cache
+	docker compose --profile $(IMAGE_SERVICE) build --no-cache $(IMAGE_SERVICE)
 
 push: ## Push built images to the registry
 	@echo "Pushing images to the configured registry..."
-	docker compose push
+	docker compose --profile $(IMAGE_SERVICE) push $(IMAGE_SERVICE)
 
 pull: ## Pull the latest pre-built images from the registry
 	@echo "Pulling latest images..."
-	docker compose pull
+	docker compose --profile $(IMAGE_SERVICE) pull $(IMAGE_SERVICE)
 
 # --- Robot Missions ---
+drivers: gui-perms ## Start only the Vive drivers + RViz (no robot)
+	docker compose --profile drivers up
+
 franka: gui-perms ## Start Franka (Single Right Controller)
 	docker compose --profile franka up
 
@@ -54,19 +60,18 @@ g1: gui-perms ## Start G1 Dual Arm
 
 # --- Utilities ---
 calibrate: gui-perms ## Paint the workspace fence with the right controller (writes config/workspace.yaml)
-	# Runs calibration inside the franka container context, in the same frame as teleop
-	docker compose --profile franka run --rm franka ros2 launch ros2_vive_controller calibration.launch.py \
+	# Same serial and reference lighthouse as teleop, so the fence is recorded in the same frame
+	docker compose --profile drivers run --rm drivers ros2 launch ros2_vive_controller calibration.launch.py \
 		serial:=$(strip $(SERIAL_RIGHT)) reference_lighthouse_serial:=$(strip $(REFERENCE_LIGHTHOUSE_SERIAL))
 
-identify: ## Vibrate controllers to check IDs
-	@echo "Vibrating RIGHT controller..."
-	-docker exec -it ros2_vive_franka /entrypoint.sh ros2 service call /vive/right/identify std_srvs/srv/Trigger || \
-	 docker exec -it ros2_vive_tiago /entrypoint.sh ros2 service call /vive/right/identify std_srvs/srv/Trigger || \
-	 docker exec -it ros2_vive_tiago_pro /entrypoint.sh ros2 service call /vive/right/identify std_srvs/srv/Trigger || \
-	 docker exec -it ros2_vive_g1 /entrypoint.sh ros2 service call /vive/right/identify std_srvs/srv/Trigger
-	@echo "Vibrating LEFT controller..."
-	-docker exec -it ros2_vive_tiago_pro /entrypoint.sh ros2 service call /vive/left/identify std_srvs/srv/Trigger || \
-	 docker exec -it ros2_vive_g1 /entrypoint.sh ros2 service call /vive/left/identify std_srvs/srv/Trigger
+identify: ## Vibrate the right, then the left controller of the running vive container
+	@c=$$(docker ps --format '{{.Names}}' | grep -m1 -E '^ros2_vive_(franka|tiago|tiago_pro|g1|drivers)$$'); \
+	if [ -z "$$c" ]; then echo "No vive container is running: start one first (e.g. make tiago_pro)."; exit 1; fi; \
+	for side in right left; do \
+		echo "Vibrating $$side controller ($$c)..."; \
+		docker exec $$c /entrypoint.sh timeout 5 ros2 service call /vive/$$side/identify std_srvs/srv/Trigger \
+			|| echo "  no $$side controller (single-arm robot, or the controller is not connected)"; \
+	done
 
 stop: ## Stop all running vive containers
 	docker compose down
