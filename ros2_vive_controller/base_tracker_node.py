@@ -11,11 +11,6 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from OneEuroFilter import OneEuroFilter
-from ros2_vive_controller.openvr_class.openvr_class import (
-    triad_openvr,
-    convert_to_quaternion,
-    get_pose,
-)
 
 
 def pose_to_matrix(pose):
@@ -83,43 +78,36 @@ class BaseViveTracker3_0Node(Node):
             self._compute_lighthouse_inverse()
 
     def _find_device_by_serial(self, target_serial):
-        for key, dev in self.vr.devices.items():
-            if dev.get_serial() == target_serial:
-                return key
-        return None
+        """Registry name of the connected device with this serial, or None."""
+        return self.vr.get_device_name_by_serial(target_serial)
 
     def _compute_lighthouse_inverse(self):
         """Find reference lighthouse and cache its inverse transform.
 
-        Reads mDeviceToAbsoluteTracking directly (bypassing bPoseIsValid)
-        because Lighthouse 2.0 base stations have bPoseIsValid=False
-        even though the calibrated position is present in the matrix.
+        Uses the stored matrix even when bPoseIsValid is False, because
+        Lighthouse 2.0 base stations report bPoseIsValid=False even though
+        the calibrated position is present in the matrix.
         """
         self._lighthouse_retry_count += 1
 
-        for key, dev in self.vr.devices.items():
-            if dev.get_serial() == self.reference_lighthouse_serial:
-                poses = get_pose(self.vr.vr)
-                raw_mat = poses[dev.index].mDeviceToAbsoluteTracking
-                # Check rotation diagonal — an uninitialized matrix is all zeros,
-                # while any valid rotation has non-zero diagonal elements.
-                # Translation CAN be (0,0,0) when the lighthouse is at the origin.
-                if raw_mat[0][0] == 0.0 and raw_mat[1][1] == 0.0 and raw_mat[2][2] == 0.0:
-                    if self._lighthouse_retry_count % 100 == 1:
-                        self.get_logger().warn(
-                            f"Reference lighthouse '{self.reference_lighthouse_serial}' "
-                            f"found but matrix uninitialized (retry {self._lighthouse_retry_count})"
-                        )
-                    return
-                pose = convert_to_quaternion(raw_mat)
-                self.T_lighthouse_inv = np.linalg.inv(pose_to_matrix(pose))
-                if self.frame_id == "vive_world":
-                    self.frame_id = self.reference_lighthouse_serial
-                self.get_logger().info(
-                    f"Using lighthouse {self.reference_lighthouse_serial} as reference frame "
-                    f"(frame_id: {self.frame_id})"
-                )
+        dev = self.vr.get_device_by_serial(self.reference_lighthouse_serial)
+        if dev is not None:
+            pose = dev.get_pose_quaternion(require_valid=False)
+            if pose is None:
+                if self._lighthouse_retry_count % 100 == 1:
+                    self.get_logger().warn(
+                        f"Reference lighthouse '{self.reference_lighthouse_serial}' "
+                        f"found but matrix uninitialized (retry {self._lighthouse_retry_count})"
+                    )
                 return
+            self.T_lighthouse_inv = np.linalg.inv(pose_to_matrix(pose))
+            if self.frame_id == "vive_world":
+                self.frame_id = self.reference_lighthouse_serial
+            self.get_logger().info(
+                f"Using lighthouse {self.reference_lighthouse_serial} as reference frame "
+                f"(frame_id: {self.frame_id})"
+            )
+            return
 
         if self._lighthouse_retry_count % 100 == 1:
             self.get_logger().warn(

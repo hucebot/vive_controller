@@ -24,6 +24,7 @@ class ViveDriverNode(Node):
                 ('side', 'right'),
                 ('serial', ''),
                 ('reference_lighthouse_serial', ''),
+                ('allow_invalid_lighthouse_pose', False),
                 ('frame_id', 'vive_world'),
                 ('linear_scale', 1.0),
                 ('workspace.x_min', -1.0), ('workspace.x_max', 1.0),
@@ -52,18 +53,17 @@ class ViveDriverNode(Node):
             'pad': self.get_parameter('workspace.padding').value
         }
 
-        # --- VR Setup ---
-        self.vr = triad_openvr()
-        self.device_name = self._find_device_by_serial(self.serial)
+        # Lighthouse 2.0 base stations flag their pose as invalid although it is calibrated.
+        # Using it anyway changes the frame the pose is published in, so it is opt-in.
+        self.allow_invalid_lh_pose = self.get_parameter('allow_invalid_lighthouse_pose').value
 
-        # Find Lighthouse
-        self.lh_device_name = None
-        if self.ref_lh_serial:
-            self.lh_device_name = self._find_device_by_serial(self.ref_lh_serial)
-            if self.lh_device_name:
-                self.get_logger().info(f"Using Lighthouse {self.ref_lh_serial} as origin frame.")
-            else:
-                self.get_logger().warn(f"Lighthouse {self.ref_lh_serial} not found. Using default OpenVR world frame.")
+        # --- VR Setup ---
+        # Devices are looked up by serial on every cycle (see update()), so a controller that is
+        # switched off and on again is picked up again instead of crashing the node.
+        self.vr = triad_openvr()
+        self.connected = False
+        self._last_missing_log = None
+        self._lh_state = None
 
         # --- Publishers & Services ---
         self.srv_identify = self.create_service(Trigger, 'identify', self.identify_callback)
@@ -71,11 +71,6 @@ class ViveDriverNode(Node):
         self.pub_joy = self.create_publisher(JointState, 'joint_states', 10)
         self.pub_marker = self.create_publisher(Marker, 'workspace_marker', 10)
         self.tf_broadcaster = TransformBroadcaster(self)
-
-        if not self.device_name:
-            self.get_logger().error(f"Could not find controller {self.serial}")
-        else:
-            self.get_logger().info(f"Connected to {self.side} controller: {self.serial}")
 
         # --- State Variables ---
         self.is_calibrating = False
@@ -85,27 +80,91 @@ class ViveDriverNode(Node):
 
         self.filters = self._init_filters()
         self.tracking_active = False
-        self.haptic_frames_remaining = 0
+        self._haptic_until = 0.0
 
         self.create_timer(0.02, self.update)
+        # Haptics get their own timer so that buzzing never blocks the pose loop.
+        self.create_timer(0.01, self._haptic_tick)
         self.publish_workspace_marker(self.frame_id)
 
     def identify_callback(self, request, response):
-        if not self.device_name:
+        if self.vr.get_device_by_serial(self.serial) is None:
             response.success = False
             response.message = "Controller not connected."
             return response
         self.get_logger().info(f"Identifying controller: {self.serial}")
-        self.haptic_frames_remaining = 150
+        self._buzz(3.0)
         response.success = True
         response.message = f"Vibrating {self.side} controller ({self.serial})"
         return response
 
-    def _find_device_by_serial(self, target_serial):
-        for key, dev in self.vr.devices.items():
-            if dev.get_serial() == target_serial:
-                return key
-        return None
+    def _buzz(self, seconds):
+        """Vibrate the controller for the given time (one 3.9 ms pulse every 10 ms)."""
+        self._haptic_until = max(self._haptic_until, time.monotonic() + seconds)
+
+    def _haptic_tick(self):
+        if time.monotonic() >= self._haptic_until:
+            return
+        controller = self.vr.get_device_by_serial(self.serial)
+        if controller is None:
+            self._haptic_until = 0.0
+            return
+        controller.trigger_haptic_pulse(3900)
+
+    def _available_serials(self):
+        return [f"{dev.get_serial()} ({dev.device_class})" for dev in self.vr.devices.values()
+                if dev.device_class in ('Controller', 'Tracker')]
+
+    def _report_missing_controller(self):
+        now = time.monotonic()
+        if self.connected:
+            self.connected = False
+            self.tracking_active = False
+            self._haptic_until = 0.0
+            self._last_missing_log = now
+            self.get_logger().warn(
+                f"{self.side} controller {self.serial} disconnected. Waiting for it to come back...")
+            return
+        if self._last_missing_log is not None and now - self._last_missing_log < 5.0:
+            return
+        self._last_missing_log = now
+        if self.serial:
+            problem = f"Could not find {self.side} controller {self.serial}."
+        else:
+            problem = f"No serial configured for the {self.side} controller (parameter 'serial' is empty)."
+        available = ', '.join(self._available_serials()) or 'none'
+        self.get_logger().error(f"{problem} Connected controllers/trackers: {available}")
+
+    def _log_lighthouse_state(self, state, message, warn):
+        if state == self._lh_state:
+            return
+        self._lh_state = state
+        if warn:
+            self.get_logger().warn(message)
+        else:
+            self.get_logger().info(message)
+
+    def _reference_lighthouse_pose(self):
+        """Pose of the reference lighthouse, or None to publish in the OpenVR world frame."""
+        if not self.ref_lh_serial:
+            return None
+        lh = self.vr.get_device_by_serial(self.ref_lh_serial)
+        if lh is None:
+            self._log_lighthouse_state(
+                'missing', f"Lighthouse {self.ref_lh_serial} not found. Using default OpenVR world frame.", True)
+            return None
+        lh_pose = lh.get_pose_quaternion()
+        if lh_pose is None and self.allow_invalid_lh_pose:
+            lh_pose = lh.get_pose_quaternion(require_valid=False)
+        if lh_pose is None:
+            self._log_lighthouse_state(
+                'invalid',
+                f"Lighthouse {self.ref_lh_serial} reports no valid pose (Base Station 2.0?). Staying in "
+                f"{self.frame_id}. Set allow_invalid_lighthouse_pose:=true to use its stored calibration.",
+                True)
+            return None
+        self._log_lighthouse_state('ok', f"Using Lighthouse {self.ref_lh_serial} as origin frame.", False)
+        return lh_pose
 
     def calibration_callback(self, msg):
         if msg.data:
@@ -188,31 +247,17 @@ class ViveDriverNode(Node):
         return [pos[0], pos[1], pos[2], quat[0], quat[1], quat[2], quat[3]]
 
     def update(self):
-        # 1. Poll OpenVR to catch any new devices
+        # 1. Poll OpenVR to catch devices that appear or disappear
         self.vr.poll_vr_events()
 
-        # 2. Check controller
-        if not self.device_name:
-            self.device_name = self._find_device_by_serial(self.serial)
-            if self.device_name:
-                self.get_logger().info(f"Connected to {self.side} controller: {self.serial}")
-            else:
-                return
-
-        # 3. Check lighthouse
-        if self.ref_lh_serial and not self.lh_device_name:
-            self.lh_device_name = self._find_device_by_serial(self.ref_lh_serial)
-            if self.lh_device_name:
-                self.get_logger().info(f"Using Lighthouse {self.ref_lh_serial} as origin frame.")
-
-        controller = self.vr.devices[self.device_name]
-
-        # --- HAPTICS ---
-        if self.haptic_frames_remaining > 0:
-            controller.trigger_haptic_pulse(3900)
-            time.sleep(0.005)
-            controller.trigger_haptic_pulse(3900)
-            self.haptic_frames_remaining -= 1
+        # 2. Check controller (looked up by serial every cycle, never by a cached name)
+        controller = self.vr.get_device_by_serial(self.serial)
+        if controller is None:
+            self._report_missing_controller()
+            return
+        if not self.connected:
+            self.connected = True
+            self.get_logger().info(f"Connected to {self.side} controller: {self.serial}")
 
         pose = controller.get_pose_quaternion()
         inputs = controller.get_controller_inputs()
@@ -227,7 +272,7 @@ class ViveDriverNode(Node):
         if not self.tracking_active:
             self.get_logger().info(f"Tracking ACQUIRED for {self.side}! Buzzing...")
             self.tracking_active = True
-            self.haptic_frames_remaining = 50
+            self._buzz(1.0)
 
         # --- Frame Resolution & TF Broadcasting ---
         world_frame = self.frame_id
@@ -237,23 +282,20 @@ class ViveDriverNode(Node):
         final_pose = pose
         current_ref_frame = world_frame
 
-        if self.lh_device_name:
-            lh = self.vr.devices.get(self.lh_device_name)
-            if lh:
-                lh_pose = lh.get_pose_quaternion()
-                if lh_pose:
-                    # --- NEW: Flip the lighthouse frame 180 degrees on the Z (Yaw) axis ---
-                    # Note: If it's flipping upside down instead of spinning around,
-                    # change axis='z' to axis='x' or axis='y'
-                    lh_pose = self._apply_rotation_offset(lh_pose, axis='z', angle_degrees=180)
+        lh_pose = self._reference_lighthouse_pose()
+        if lh_pose:
+            # --- NEW: Flip the lighthouse frame 180 degrees on the Z (Yaw) axis ---
+            # Note: If it's flipping upside down instead of spinning around,
+            # change axis='z' to axis='x' or axis='y'
+            lh_pose = self._apply_rotation_offset(lh_pose, axis='z', angle_degrees=180)
 
-                    current_ref_frame = lh_frame
-                    # Broadcast World -> Lighthouse
-                    self.tf_broadcaster.sendTransform(self._make_tf(lh_pose, world_frame, lh_frame))
-                    # Compute Relative Pose
-                    final_pose = self._compute_relative_pose(pose, lh_pose)
-                    # Broadcast Lighthouse -> Controller
-                    self.tf_broadcaster.sendTransform(self._make_tf(final_pose, lh_frame, controller_frame))
+            current_ref_frame = lh_frame
+            # Broadcast World -> Lighthouse
+            self.tf_broadcaster.sendTransform(self._make_tf(lh_pose, world_frame, lh_frame))
+            # Compute Relative Pose
+            final_pose = self._compute_relative_pose(pose, lh_pose)
+            # Broadcast Lighthouse -> Controller
+            self.tf_broadcaster.sendTransform(self._make_tf(final_pose, lh_frame, controller_frame))
 
         # Fallback if no lighthouse tracked
         if current_ref_frame == world_frame:
