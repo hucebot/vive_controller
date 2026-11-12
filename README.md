@@ -1,273 +1,275 @@
 # ROS 2 Vive Controller
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A unified ROS 2 driver and teleoperation bridge for HTC Vive hardware (Controllers, Trackers 3.0, and Base Stations). This package provides a standalone, heavily optimized Dockerized workflow for workspace calibration, robot teleoperation, and reliable 6-DOF tracking.
+Teleoperate robot arms with HTC Vive controllers, in Docker. SteamVR runs headless in the container: no
+headset, and no ROS 2 or SteamVR to install on the host. Used at HuCeBot for the Franka Panda, TIAGo,
+TIAGo Pro and Unitree G1.
 
-|  | **Teleoperation in Action** |
+| | |
 | :---: | :---: |
-| <img src="assets/images/vive_controller_logo.png" alt="Logo" width="200"> | <img src="assets/images/test_rviz.gif" alt="Teleop" width="400"> |
+| <img src="assets/images/vive_controller_logo.png" alt="Logo" width="200"> | <img src="assets/images/test_rviz.gif" alt="Teleoperation in RViz" width="400"> |
 
----
+## Contents
+- [How it works](#how-it-works)
+- [Requirements](#requirements)
+- [First-time setup](#first-time-setup)
+- [Daily use](#daily-use)
+- [Configuration reference](#configuration-reference)
+- [The driver (vive_node)](#the-driver-vive_node)
+- [The teleop bridge (teleop_bridge_node)](#the-teleop-bridge-teleop_bridge_node)
+- [Adding a robot](#adding-a-robot)
+- [Vive Trackers](#vive-trackers)
+- [Troubleshooting](#troubleshooting)
+- [Tests](#tests)
+- [Maintainers](#maintainers)
 
-## 📋 Table of Contents
-- [🛠️ Prerequisites](#️-prerequisites)
-- [⚙️ Configuration](#️-configuration)
-- [🚀 Quick Start & Deployment](#-quick-start--deployment)
-- [⚙️ The Vive Driver Node (`vive_node.py`)](#️-the-vive-driver-node-vive_nodepy)
-- [🛠️ The Teleop Bridge Node (`teleop_bridge_node.py`)](#️-the-teleop-bridge-node-teleop_bridge_nodepy)
-- [🤖 Adding Your Own Robot](#-adding-your-own-robot)
-- [🧪 Tests](#-tests)
+## How it works
 
----
+```
+SteamVR ──> vive_node (one per hand) ──> /vive/<side>/pose, joint_states ──> teleop_bridge_node ──> robot command topic
+             filters, origin frame,                                          clutch on the trigger,
+             safety fence, haptics                                           TF of the end effector
+```
 
-## 🛠️ Prerequisites
+- **`vive_node`** reads one controller from SteamVR and publishes its pose and buttons. It can express poses relative to
+  a base station, keeps the controller inside a painted workspace fence, and vibrates it.
+- **`teleop_bridge_node`** turns the controller pose into an end-effector target for the robot while the trigger is held
+  (the clutch), and republishes the buttons on the topics the robot expects.
+- **Robot profiles** (`config/robots/<robot>.yaml`) describe each robot: which arms, which topics and frames.
+- **The station file** (`config/station.yaml`, one per machine, written by `make setup`) says which controller is in
+  which hand, which base station is the origin, which robot this machine drives, and each arm's fence.
 
-### Hardware
-* **HTC Vive Base Stations** (Lighthouse): At least one is mandatory for tracking.
-* **HTC Vive Controllers** or **Vive Trackers (3.0)**.
-* **Micro USB to USB-A Cables**: For connecting the controllers to the host machine during setup and calibration.
+## Requirements
 
-### Software
-* **Docker**
-* **Make** (`sudo apt install make`).
-* **Steam Account**: A valid username and password are required to download the headless SteamVR server during the initial Docker build.
+- At least one HTC Vive base station (Lighthouse), and Vive controllers (or Vive Trackers 3.0, see [Vive Trackers](#vive-trackers)).
+- Micro USB cables if the controllers are used wired.
+- Docker and `make`.
+- To build the image yourself: a Steam account (SteamVR is downloaded during the build). Lab members can pull the
+  pre-built image instead.
 
----
+## First-time setup
 
-## ⚙️ Configuration
+### 1. `.env`
 
+```bash
+cp .env.template .env
+```
 
-### 1. .env file
+Fill in at least the Steam credentials (only needed to build the image) and `ROS_DOMAIN_ID`. Everything else is optional:
 
-This project relies on a `.env` file to map your specific hardware to the Docker containers.
+| Variable | Use |
+| :--- | :--- |
+| `STEAM_USER`, `STEAM_PASSWORD` | Building the image (`make build`) |
+| `ROS_DOMAIN_ID` | ROS 2 domain shared with the robot |
+| `LINEAR_SCALE` | Hand-to-robot translation scale. Unset: the robot profile's value |
+| `CLUTCH_REFERENCE` | `tf` (default) or `last_command`, see [the bridge](#the-teleop-bridge-teleop_bridge_node) |
+| `SERIAL_RIGHT`, `SERIAL_LEFT`, `REFERENCE_LIGHTHOUSE_SERIAL` | Fallback serials, used until `make setup` has saved its own |
+| `SETUP_PORT` | Port of the setup web app (default `8800`) |
 
-1. Copy the template file:
-   ```bash
-   cp .env.template .env
-   ```
+### 2. DDS network interface
 
-2. Open `.env` and fill in your details:
+Each robot uses its own Cyclone DDS file in `config/`. Put the name of the network interface that reaches the robot
+(`ip link`) in it:
 
-```env
-   # --- 1. Steam Credentials (For Build) ---
-   STEAM_USER=your_steam_username
-   STEAM_PASSWORD=your_steam_password
-
-   # --- 2. Network & Scale ---
-   ROS_DOMAIN_ID=2
-   LINEAR_SCALE=1.75 # Adjust to scale operator movement to robot movement
-
-   # --- 3. Hardware Serials ---
-   SERIAL_LEFT=LHR-97752221       # Left Controller/Tracker ID
-   SERIAL_RIGHT=LHR-4BB3817E      # Right Controller/Tracker ID
-   REFERENCE_LIGHTHOUSE_SERIAL=LHB-2E7D2119 # The master Lighthouse used as the TF origin (0,0,0)
-   ```
-   > **The serials in `.env` are a fallback.** The easiest way to set the controllers and the origin base station is `make setup` (see Quick Start), which saves them in `config/station.yaml`. Once that file lists them, it wins over `.env`. A machine without it uses the `.env` serials, as before. Nothing falls back to hardcoded serials.
-   >
-   > **Tip:** `make identify` (no robot needed) lists every controller, tracker and base station SteamVR sees with its serial, battery and role, then vibrates each controller in turn.
-   > Otherwise, you can run `sudo dmesg -w | grep "LHR"` for the controllers or `sudo dmesg -w | grep "LHB"` for the base stations while plugging them in to see their serial numbers in real time.
-
-### 2. DDS Network Interface Name
-
-Depending on the network interface used on your machine, you need to update the interface used by Cyclone DDS. For example, when using the Tiago Pro, edit both the `cyclonedds.xml` and `tiago_cyclonedds.xml` files.
-
-Replace the following line with the name of your network interface:
+| Robot | File |
+| :--- | :--- |
+| Franka | `franka_cyclonedds.xml` |
+| TIAGo, TIAGo Pro | `tiago_cyclonedds.xml` |
+| G1, drivers only | `cyclonedds.xml` |
 
 ```xml
 <NetworkInterface name="enx607d09178f25" />
 ```
 
-You can find your network interface name by running:
+The Franka file uses multicast for discovery only (`<AllowMulticast>spdp</AllowMulticast>`). With full multicast, data
+from the robot was lost, so its TF arrived late. See [Troubleshooting](#troubleshooting).
+
+### 3. Get the image
 
 ```bash
-ip addr
+make pull     # lab members: pre-built image from the registry
+make build    # or build it (needs STEAM_USER / STEAM_PASSWORD)
 ```
 
-or
+### 4. Set up the station
 
-```bash
-ip link
-```
-
-Then replace `enx607d09178f25` with your interface name (e.g., `eno2`, `enp3s0`, `wlp2s0`, etc.).
-
-
----
-
-## 🚀 Quick Start & Deployment
-
-We use a `Makefile` to simplify interacting with the multi-profile `docker-compose.yml`. You never need to install ROS 2 or SteamVR on your host machine.
-
-### 1. Build or Pull the Image (For Internal Usage)
-> ⚠️ The pull step can only be used by our team members for now, for safety reasons we do not provide images publicly, since they require steam credentials to build.
-```bash
-# Option A (Internal): Pull the pre-built image from the registry
-make pull
-
-# Option B (Standard): Build it locally (requires STEAM_USER / STEAM_PASSWORD in .env)
-make build
-```
-
-### 2. Set Up the Station
 ```bash
 make setup
 ```
-This starts a small web app next to SteamVR and prints its address (port `8800`, `SETUP_PORT` in `.env` to change it). Open it on the PC or on a tablet/phone on the same network:
 
-1. **Robot**: the robot this machine drives (one of `config/robots/`).
+This starts a small web app next to SteamVR and prints its address. Open it on the PC, or on a tablet or phone on the
+same network:
+
+1. **Robot**: the robot this machine drives.
 2. **Hands**: press *Assign*, then pull the trigger of the controller in that hand. *Buzz* vibrates a controller.
-3. **Origin**: the base station used as the origin frame, for robots whose profile uses one (Franka).
-4. **Workspace fence**: press *Paint*, hold that hand's trigger and sweep the space the hand should reach, then *Done*. The 3D view shows the points, the fence, its warning band and the live controllers.
+3. **Origin**: the base station used as the origin frame (only for robots whose profile uses one, i.e. Franka).
+4. **Workspace fence**: press *Paint*, hold that hand's trigger and sweep the space the hand should reach, then *Done*.
+   The 3D view shows the points, the fence, its warning band and the live controllers. Adjust the margin if needed.
 
-*Save* writes `config/station.yaml` (local to the machine, not tracked by git). Restart the robot to use it. If `make setup` finds a running vive container it attaches to its SteamVR. When teleop is running there, *Assign* and *Paint* are disabled, because a trigger pull would also move the robot.
+*Save* writes `config/station.yaml` (local to the machine, not in git). `make setup-demo` runs the same app on simulated
+controllers, to try it without hardware.
 
-`make setup-demo` runs the app with simulated controllers (no hardware, nothing saved), to try it out.
+Base stations only show up once a controller has seen them, which can take up to 30 s after SteamVR starts. Hold a
+controller up towards them.
 
-Where each value comes from:
+## Daily use
+
+```bash
+make teleop      # start the robot saved in make setup
+make franka      # or start a robot explicitly: franka, tiago, tiago_pro, g1
+make stop        # stop the containers
+```
+
+Hold the trigger to move the arm, release it to stop. Teleop is relative: each stroke moves the arm by how much your hand
+moved, so you can ratchet over long distances. The gripper follows the controller's orientation.
+
+Other commands:
+
+| Command | What it does |
+| :--- | :--- |
+| `make setup` | Setup web app (also while a robot runs: it then shares its SteamVR, but trigger actions are disabled) |
+| `make setup-demo` | Setup app with simulated controllers |
+| `make identify` | List the devices SteamVR sees (serial, battery, role, tracking) and vibrate each controller |
+| `make drivers` | Only the Vive drivers and RViz, no robot |
+| `make calibrate` | Paint the right arm's fence in RViz instead of the web app (`SIDE=left` for the left arm) |
+| `make pull` / `build` / `push` | Image management |
+| `make clean` | Remove the containers |
+
+At startup the launch log lists the profile, the scale and where each serial came from:
+
+```
+Robot profile 'franka': Franka Panda, single arm (Cartesian impedance controller) (arms: right, linear scale 2.0)
+  Right controller: LHR-21C1BC92 (config/station.yaml)
+  Origin base station: LHB-4B20F6CF (config/station.yaml)
+  Right arm fence from config/station.yaml: on (frame 'lighthouse_origin')
+```
+
+## Configuration reference
+
+### Where each value comes from
 
 | Value | Order (first one set wins) |
 | :--- | :--- |
-| Controller serials, origin base station | launch argument → `config/station.yaml` → `.env` (`SERIAL_RIGHT`, `SERIAL_LEFT`, `REFERENCE_LIGHTHOUSE_SERIAL`) |
-| Workspace fence (per arm) | `config/station.yaml` → old `config/workspace.yaml` (both arms) → none |
-| Scale, clutch reference | `.env` (`LINEAR_SCALE`, `CLUTCH_REFERENCE`) → robot profile → bridge default |
+| Controller serials, origin base station | launch argument, then `config/station.yaml`, then `.env` |
+| Workspace fence (per arm) | `config/station.yaml`, then the old `config/workspace.yaml` (both arms), then none |
+| Scale, clutch reference | `.env` (`LINEAR_SCALE`, `CLUTCH_REFERENCE`), then the robot profile, then the bridge default |
 
-The launch log says where each serial came from, e.g. `Right controller: LHR-21C1BC92 (config/station.yaml)`.
+A device listed in `config/station.yaml` wins even when it is empty, so choosing "no origin base station" in the app is
+not undone by an old `.env` value.
 
-### 3. Launch a Robot Mission
-The `docker-compose.yml` is divided into specific robot profiles. Simply run the make command for your target hardware. This automatically passes X11 permissions for RViz, injects your `.env` variables, and sets the CycloneDDS network interfaces.
-```bash
-make teleop      # The robot chosen in make setup
-make franka      # Start Franka (Single Right Arm)
-make tiago       # Start TIAGo (Dual Arm)
-make tiago_pro   # Start TIAGo Pro (Dual Arm)
-make g1          # Start Unitree G1 (Dual Arm Humanoid)
+### `config/station.yaml` (written by `make setup`)
+
+```yaml
+robot: franka
+devices:
+  right: LHR-21C1BC92
+  left: ''
+  origin_lighthouse: LHB-4B20F6CF
+workspace:
+  right: {enabled: true, frame_id: lighthouse_origin, x_min: -0.45, x_max: 0.40, y_min: 0.30, y_max: 1.05, z_min: -0.35, z_max: 0.30}
 ```
 
-### 4. Utilities
-Manage the lifecycle and hardware with these helper commands:
-```bash
-make drivers     # Starts only the Vive drivers + RViz (no robot), e.g. to check the controllers
-make identify    # Lists the connected Vive devices and vibrates each controller (no robot needed)
-make calibrate   # Paints the right arm's fence in RViz instead of the web app (SIDE=left for the left arm)
-make stop        # Safely shuts down running containers
-make clean       # Removes all containers and orphans
-```
+A `.bak` of the previous version is kept next to it.
 
-Each `make <robot>` starts only that robot's container.
+### Robot profiles (`config/robots/<robot>.yaml`)
 
----
+See [Adding a robot](#adding-a-robot). `franka.yaml` documents every key.
 
-## ⚙️ The Vive Driver Node (`vive_node.py`)
+### Driver defaults (`config/vive.params.yaml`)
 
-The driver is the core interface between the OpenVR runtime and ROS 2. It handles hardware tracking, filtering, safety limits, and coordinate transformations.
+Filter settings (`filter.mincutoff`, `filter.beta`, `filter.dcutoff`), the frame without an origin base station
+(`frame_id: vive_world`) and the fence's warning band (`workspace.padding`, 0.15 m).
 
-### 🌟 Key Features
+## The driver (vive_node)
 
-* **Dynamic Lighthouse Origin (Stable TF Tree):** Standard SteamVR uses an invisible, arbitrary "Standing Universe" origin. This node allows you to specify a `reference_lighthouse_serial`. If found, the node automatically computes the math to make that physical Lighthouse the exact $(0,0,0)$ origin of your TF tree. It even applies an automatic 180° Z-axis flip to correct standard Lighthouse hardware alignments.
-  * Only robots whose profile has `use_origin_lighthouse: true` use it (**Franka**); TIAGo, TIAGo Pro and G1 publish in `vive_world`. Enabling it for another robot changes the frame its poses are published in, so its `rotation_offset` may need re-tuning.
-  * Base Station 2.0 units can report their pose as *invalid* although it is calibrated. The node then stays in `vive_world` and logs a warning; set `allow_invalid_lighthouse_pose:=true` to use the stored pose anyway.
-* **Hot-Plug Polling:** Uses continuous OpenVR event polling and looks devices up by serial on every cycle. If a tracker or lighthouse is turned on *after* the Docker container starts, or a controller is switched off and on again (battery swap, re-pairing), the node picks it up again without a restart, and the other side keeps tracking its own controller.
-* **Reliable Poses Only:** SteamVR keeps flagging a partly covered controller's pose as valid while it only dead-reckons from the IMU, and those poses drift and jump. The driver only publishes poses SteamVR tracks optically (`Running_OK`), needs `tracking_ok_samples` (5) good samples in a row before publishing again, and logs the reason (`Tracking LOST for right (Running_OutOfRange)`). The teleop bridge then disengages through `pose_timeout`. Set `require_tracking_ok:=false` for the old behaviour.
-  * **Known limitation (wired controllers):** SteamVR inside the container does not notice a controller on a USB cable that is unplugged or switched off and on again (its log shows the disconnect, then nothing). The driver keeps running and reports it missing; restart `make <robot>` to get it back. Wireless controllers (via a dongle that stays plugged in) are not affected by this.
-* **Virtual Safety Fence (Haptics):** One box per arm, off until you paint it in `make setup` (or with `make calibrate`, in RViz). It is saved in `config/station.yaml` with the frame it was recorded in (the frame the chosen robot publishes in) and loaded the next time the drivers start. An old `config/workspace.yaml` still applies to the arms that have no fence in `config/station.yaml`.
-  * **Warning band** (`workspace.padding`, 0.15 m inside the fence): the controller vibrates, the pose is still published.
-  * **Outside the fence:** the controller vibrates and the pose is held back, so the teleop bridge disengages (see `pose_timeout`). Buttons are always published, so a clutch release is never missed.
-  * The fence is ignored, with a warning, if it was recorded in another frame than the one the driver publishes in (e.g. with a different origin base station). Turn it off or remove it in `make setup`.
-* **OneEuro Filtering:** Implements a high-speed, low-latency OneEuro filter to eliminate high-frequency hand jitter before it reaches the robot arm.
+One node per hand, in the `/vive/<side>` namespace.
 
-### 📊 Data Outputs & TF Tree
-
-The driver automatically broadcasts a standard `tf2` tree:
-`vive_world` ➔ `lighthouse_origin` (if configured) ➔ `vive_right_link`
-
-It also publishes the following topics in its designated namespace (e.g., `/vive/right/`):
-
-| Topic | Type | Description |
+| Topic | Type | Content |
 | :--- | :--- | :--- |
-| `pose` | `geometry_msgs/PoseStamped` | Filtered 6-DOF position and orientation. Frame ID matches the Lighthouse if configured. |
-| `joint_states` | `sensor_msgs/JointState` | The raw monolithic array of all analog/digital button inputs. |
-| `workspace_marker` | `visualization_msgs/Marker` | A semi-transparent red cube for RViz representing the safe tracking zone. |
+| `/vive/<side>/pose` | `geometry_msgs/PoseStamped` | Filtered, scaled controller pose |
+| `/vive/<side>/joint_states` | `sensor_msgs/JointState` | Buttons (see below), always published |
+| `/vive/<side>/workspace_marker` | `visualization_msgs/Marker` | The fence, for RViz |
+| `/vive/<side>/identify` | `std_srvs/Trigger` (service) | Vibrates the controller for 3 s |
 
-*(Note: You can trigger a massive haptic vibration via the `/vive/right/identify` service to figure out which controller you are holding).*
+TF: `vive_world` → `lighthouse_origin` (with an origin base station) → `vive_<side>_link`.
 
-### 🕹️ Button Mapping (`joint_states`)
+- **Origin frame.** SteamVR's world origin is arbitrary. With an origin base station, poses are relative to it, turned
+  180° about its z axis, in `lighthouse_origin`. Only robots whose profile sets `use_origin_lighthouse: true` use it
+  (Franka). Enabling it for another robot changes the axes the arm moves along, so its `rotation_offset` may need
+  re-tuning. Once known, the base station's pose is kept, so the frame never switches back mid-session. Base Station 2.0
+  units can report their pose as invalid: the node then stays in `vive_world` and says so (`allow_invalid_lighthouse_pose:=true`
+  uses the stored pose anyway).
+- **Reliable poses only.** A partly covered controller is often still flagged valid while SteamVR only dead-reckons from
+  the IMU, and those poses jump. The driver only publishes poses SteamVR tracks optically (`Running_OK`) and needs 5 good
+  samples in a row (`tracking_ok_samples`) before publishing again. The log says why tracking was lost, e.g.
+  `Tracking LOST for right (Calibrating_OutOfRange)`. `require_tracking_ok:=false` turns this off.
+- **Workspace fence.** An axis-aligned box per arm, in the frame it was painted in. Within `workspace.padding` of a face,
+  the controller vibrates and the pose is still published. Outside, it vibrates and the pose is held back, so the bridge
+  stops the arm. A fence painted in another frame than the one the driver publishes in is ignored, with a warning.
+- **Reconnects.** Controllers are looked up by serial on every cycle. A wireless controller switched off and on again
+  is picked up again, and the other hand keeps its own controller. Wired controllers: see [Troubleshooting](#troubleshooting).
+- **Filtering.** A OneEuro filter on the position removes hand jitter.
 
-The driver publishes button inputs directly from OpenVR as a standard `JointState` array. The `position` array contains the values for the following keys:
+### Buttons (`joint_states`)
 
-| Index | Name | Type | Range | Description |
-| :---: | :--- | :--- | :--- | :--- |
-| **0** | `trigger` | Analog | `0.0` - `1.0` | The index finger trigger. Used for the **Clutch**. |
-| **1** | `trackpad_x` | Analog | `-1.0` - `1.0` | Horizontal touch position on the round pad. |
-| **2** | `trackpad_y` | Analog | `-1.0` - `1.0` | Vertical touch position on the round pad. |
-| **3** | `grip` | Digital | `0.0` / `1.0` | The side grip buttons (squeezing the handle). |
-| **4** | `menu` | Digital | `0.0` / `1.0` | The small button above the trackpad. |
-| **5** | `trackpad_touched` | Digital | `0.0` / `1.0` | True if the thumb is touching the pad. |
-| **6** | `trackpad_pressed` | Digital | `0.0` / `1.0` | True if the trackpad is physically clicked down. |
-
-<div align="center">
-  <img src="assets/images/vive_button_map.png" alt="Vive Controller Button Map" width="500">
-</div>
-
-> **Note:** Digital buttons are published as floats (`0.0` for False, `1.0` for True) to maintain consistency within the `JointState` message standard.
-
----
-
-## 🛠️ The Teleop Bridge Node (`teleop_bridge_node.py`)
-
-This node sits between the raw Vive Driver and your robot's Cartesian controllers. It implements a **Clutch Mechanism** (Deadman Switch) to allow for safe, intuitive teleoperation by separating translation and rotation logic.
-
-### 🧠 Core Logic: Hybrid Positioning
-
-To provide the most intuitive experience, the bridge treats position and orientation differently:
-
-1. **Relative Translation (The Mouse Metaphor):** Position is calculated as a delta from the moment the clutch (the `trigger` button) is engaged. This allows you to "ratchet" the robot's position, moving it large distances through multiple small hand strokes while staying in a comfortable physical stance.
-   * The clutch engages at a full pull and releases as soon as the trigger leaves it (`clutch_engage_threshold` / `clutch_release_threshold`, both `1.0`). For a worn trigger that never reaches `1.0`, set e.g. `0.95` / `0.90`: that also stops flickering near a full pull, but you then have to release the trigger further to ratchet.
-   * Each new stroke starts from where TF says the end effector is (`clutch_reference: tf`, the default). If the robot's TF is delayed (e.g. clocks not synced with the robot), the arm can jump back to an old position when you clutch again. `clutch_reference: last_command` starts each stroke from the last commanded pose instead, which the arm is being held at; TF is then only used for the first stroke. Set `CLUTCH_REFERENCE=last_command` in `.env` (applies to every arm).
-   * If no pose arrives for `pose_timeout` seconds (default `0.3`, `0` disables it) while the clutch is engaged, e.g. tracking is lost or the controller leaves the safety fence, the bridge disengages and keeps holding the last command. Release and press the trigger again to continue; the arm never jumps to wherever the controller reappears.
-2. **Absolute Orientation (The Mirror Metaphor):** Rotation is **not relative**. For intuitive control, the robot's end-effector orientation directly mirrors the controller's orientation.
-3. **Axis Realignment (`rotation_offset`):** Because a VR controller's physical axes rarely match a robot gripper's axes, the node supports a custom `[Roll, Pitch, Yaw]` offset parameter. It applies this rotation locally using Scipy matrix math so the robot moves exactly how your brain expects it to.
-
-### 📐 Reference Frames & Alignment
-To properly map the VR controller to your robot using `rotation_offset`, you must understand the controller's default OpenVR axes:
+| Index | Name | Range | |
+| :---: | :--- | :--- | :--- |
+| 0 | `trigger` | 0.0 to 1.0 | The clutch |
+| 1 | `trackpad_x` | -1.0 to 1.0 | |
+| 2 | `trackpad_y` | -1.0 to 1.0 | |
+| 3 | `grip` | 0 / 1 | Side buttons |
+| 4 | `menu` | 0 / 1 | Button above the trackpad |
+| 5 | `trackpad_touched` | 0 / 1 | |
+| 6 | `trackpad_pressed` | 0 / 1 | Trackpad clicked |
 
 <div align="center">
-  <img src="assets/images/vive_axis.png" alt="Vive Controller Axes" width="350">
+  <img src="assets/images/vive_button_map.png" alt="Vive controller buttons" width="450">
 </div>
 
-* **Z-axis:** Points "out" from the controller tip.
-* **X-axis:** Points to the right side of the controller.
-* **Y-axis:** Points "up" through the trackpad.
+## The teleop bridge (teleop_bridge_node)
 
-### 🎮 Button Demultiplexing (`PointStamped`)
+One node per arm, between the driver and the robot's Cartesian controller.
 
-Standard ROS 2 robot controllers rarely accept monolithic `JointState` arrays for simple commands like opening a gripper.
+- **Clutch.** The arm follows the hand while the trigger is fully pulled (`clutch_engage_threshold`,
+  `clutch_release_threshold`, both 1.0). For a worn trigger that never reaches 1.0, set e.g. 0.95 / 0.90.
+- **Relative translation.** Each stroke moves the end effector by the hand's displacement (times `linear_scale`) from
+  where the stroke started.
+  - **Stroke start.** By default (`clutch_reference: tf`) a stroke starts from the end effector's TF.
+    `last_command` starts from the last command instead, so a late robot TF cannot make the arm jump back when you
+    clutch again. Set it with `CLUTCH_REFERENCE` in `.env`.
+- **Absolute orientation.** The gripper takes the controller's orientation, corrected by `rotation_offset`
+  (`[roll, pitch, yaw]` in degrees, applied in the controller frame). This is the intended design.
+- **Lost pose.** If no pose arrives for `pose_timeout` s (0.3, 0 to disable) while clutched, because tracking was lost
+  or the hand left the fence, the bridge lets go and holds the last command. Release and pull the trigger again to
+  continue. The arm never jumps to where the controller reappears.
+- **Buttons.** Each button is republished as `geometry_msgs/PointStamped` (value in `point.x`) on the topic the profile
+  gives it, e.g. `menu` to a gripper command. With `trackpad_pressed_required: true`, `trackpad_x`/`trackpad_y` are only
+  sent while the trackpad is clicked (used on G1, where the trackpad drives the hand).
 
-The Teleop Bridge automatically "demultiplexes" the VR buttons. You can map any Vive button to its own dedicated topic in the robot profile (`buttons:`). The bridge publishes these as `geometry_msgs/PointStamped` messages (storing the analog/digital value in the `point.x` field), which is the standard format expected by many ROS 2 action servers and bridges.
+Controller axes, for `rotation_offset`: z points out of the tip, x to the right, y up through the trackpad.
 
-### 🛡️ Trackpad Safety
+<div align="center">
+  <img src="assets/images/vive_axis.png" alt="Vive controller axes" width="300">
+</div>
 
-The node includes a `trackpad_pressed_required` parameter. If set to `true`, lightly brushing your thumb over the trackpad will output `0.0`. It will only output the X/Y coordinates to your robot if you physically *click down* on the trackpad. This is critical for preventing accidental movement commands on mobile bases or humanoids. It only affects the `trackpad_x` / `trackpad_y` topics; the other buttons are always published as they are.
+## Adding a robot
 
----
-
-## 🤖 Adding Your Own Robot
-
-The package is robot-agnostic: a robot is a YAML profile in `config/robots/`, with no Python or launch file to write. The profile says which arms are driven and how each `teleop_bridge_node` is set up; `robot_launch.py` builds the drivers, bridges and RViz from it. A mistyped key stops the launch with the list of valid keys.
+A robot is a YAML profile; no Python or launch file to write.
 
 ```yaml
 # config/robots/my_robot.yaml
 description: My robot, dual arm
 rviz: true
-linear_scale: 1.0              # hand-to-robot translation scale (LINEAR_SCALE in .env overrides it)
-use_origin_lighthouse: false   # true: poses in the origin base station frame instead of vive_world
-arms:                          # left and/or right: one teleop bridge each
+linear_scale: 1.0              # LINEAR_SCALE in .env overrides it
+use_origin_lighthouse: false   # true: poses relative to the origin base station
+arms:                          # left and/or right, one teleop bridge each
   right:
     output_topic: /my_robot/right_arm/target_pose   # the Cartesian controller's input
     reference_frame: base_link                      # robot root frame
     target_frame: right_gripper_link                # end effector frame
     publish_frequency: 30.0
-    rotation_offset: [180.0, 0.0, 0.0]              # [roll, pitch, yaw] in degrees, see Reference Frames
-    buttons:                                        # topics for the buttons; the others are /vive/right/<button>
+    rotation_offset: [180.0, 0.0, 0.0]
+    buttons:                                        # unlisted buttons go to /vive/right/<button>
       menu: /my_robot/right_gripper/toggle
   left:
     output_topic: /my_robot/left_arm/target_pose
@@ -275,17 +277,65 @@ arms:                          # left and/or right: one teleop bridge each
     target_frame: left_gripper_link
 ```
 
-Any other `teleop_bridge_node` parameter can go under an arm (`trackpad_pressed_required`, `clutch_engage_threshold`, `clutch_release_threshold`, `pose_timeout`, `clutch_reference`). `franka.yaml` documents every key.
+Any other `teleop_bridge_node` parameter can go under an arm (`trackpad_pressed_required`, `clutch_engage_threshold`,
+`clutch_release_threshold`, `pose_timeout`, `clutch_reference`). A mistyped key stops the launch and lists the valid
+ones.
 
-Try it with `ros2 launch ros2_vive_controller teleop.launch.py robot:=my_robot`. In the current image, use the file path instead (`ros2 launch /ros2_ws/src/ros2_vive_controller/launch/teleop.launch.py robot:=my_robot`); it is found by package name after the next `make build`.
+Run it with:
 
-### 🐳 Integrating with Docker and Make
-1. Open `docker-compose.yml`, copy an existing robot block (like `tiago:`), rename it and its profile, and set its command to `ros2 launch /ros2_ws/src/ros2_vive_controller/launch/teleop.launch.py robot:=my_robot linear_scale:=${LINEAR_SCALE:-} clutch_reference:=${CLUTCH_REFERENCE:-}`.
-2. Open `Makefile` and add a rule (e.g. `my_robot: gui-perms` with `docker compose --profile my_robot up`). `make setup` then lists the robot, and `make teleop` can start it.
+```bash
+ros2 launch ros2_vive_controller teleop.launch.py robot:=my_robot
+```
 
-## 🧪 Tests
+Images built before the profiles existed don't have `teleop.launch.py` installed yet. Use its path instead,
+`ros2 launch /ros2_ws/src/ros2_vive_controller/launch/teleop.launch.py robot:=my_robot`, until the next `make build`.
 
-The tests run without SteamVR or hardware: `ros2_vive_controller/testing/fake_openvr.py` stands in for OpenVR (the setup app's `--demo` mode uses it too). From the repository root, with the image you already use:
+To get `make my_robot` and see the robot in `make setup`:
+1. In `docker-compose.yml`, copy a robot service (e.g. `tiago:`), rename it and its profile, and set its command to
+   `ros2 launch /ros2_ws/src/ros2_vive_controller/launch/teleop.launch.py robot:=my_robot linear_scale:=${LINEAR_SCALE:-} clutch_reference:=${CLUTCH_REFERENCE:-}`.
+2. In the `Makefile`, add `my_robot: gui-perms` with `docker compose --profile my_robot up`.
+
+## Vive Trackers
+
+For Vive Trackers 3.0 (e.g. strapped to the hands), `tracker_3_0_node` and `bimanual_tracker_3_0_node` publish
+`/vive_<name>/pose` and `/vive_<name>/pose_hand` (the pose shifted by `hand_offset`). They run from their own image:
+
+```bash
+docker compose --profile bimanual up   # SERIAL_LEFT / SERIAL_RIGHT, HAND_OFFSET_LEFT / HAND_OFFSET_RIGHT in .env
+docker compose --profile simple up     # SERIAL, TRACKER_NAME, HAND_OFFSET in .env
+```
+
+## Troubleshooting
+
+**The arm stops and the log says `Tracking LOST for right (...)`.** The controller was covered or out of view, and the
+driver stopped publishing rather than send IMU guesses. Bring it back in view, release the trigger and pull it again.
+
+**A base station is missing in `make setup` or `make identify`.** SteamVR lists a base station only once a controller has
+seen it. Switch a controller on and hold it up towards the base stations for a few seconds.
+
+**A wired controller is not found again after unplugging it or switching it off.** SteamVR inside the container does not
+re-detect a USB controller (its log shows the disconnect, then nothing). Restart the robot (`make <robot>`). Wireless
+controllers through a dongle are not affected.
+
+**The arm jumps back to an old position when you clutch again.** The bridge started the stroke from a stale end-effector
+TF. Check that the robot's data arrives at its normal rate (`ros2 topic hz /tf`). If it is slow or bursty, check the DDS
+file: on Franka, full multicast lost the robot's data (fixed with `AllowMulticast spdp`). `CLUTCH_REFERENCE=last_command`
+also avoids it.
+
+**`Workspace fence was calibrated in 'X' but poses are in 'Y': fence disabled`.** The fence was painted with another
+origin than the one in use (another robot, or another origin base station). Paint it again in `make setup`.
+
+**`make setup` says the port is in use.** The app is already running somewhere, or another program uses port 8800. Stop
+it, or set `SETUP_PORT` in `.env`.
+
+**`steamclient.so: cannot open shared object file` in the log.** Harmless: SteamVR runs without the Steam client.
+
+**Which controller is which?** `make identify` vibrates each one in turn, or press *Buzz* in `make setup`.
+
+## Tests
+
+The tests need no SteamVR or hardware: `ros2_vive_controller/testing/fake_openvr.py` stands in for OpenVR (the setup
+app's demo mode uses it too). From the repository root:
 
 ```bash
 docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONDONTWRITEBYTECODE=1 --entrypoint bash \
@@ -293,12 +343,10 @@ docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONDONTWRITEBYTECO
   -lc "source /opt/ros/humble/setup.bash && python3 -m pytest -q -p no:cacheprovider test"
 ```
 
-## 👥 Maintainers & Contributors
+## Maintainers
 
-This package is actively developed by the **[HuCeBot Team](https://github.com/hucebot)** at Inria / Loria.
+Developed by the [HuCeBot team](https://github.com/hucebot) at Inria / Loria.
 
-
-**Authors & Core Contributors:**
-* Maintainers: **[Dionis Totsila](https://github.com/dtotsila)**, **[Jean-Baptiste Mouret](https://github.com/jbmouret)**
-* Active contributors: **[Hippolyte Henry](https://github.com/hippolyte-bleu)**
-* Other contributors: **[Clemente Donoso](https://github.com/cdonoso)**
+- Maintainers: [Dionis Totsila](https://github.com/dtotsila), [Jean-Baptiste Mouret](https://github.com/jbmouret)
+- Active contributors: [Hippolyte Henry](https://github.com/hippolyte-bleu)
+- Other contributors: [Clemente Donoso](https://github.com/cdonoso)

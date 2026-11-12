@@ -230,7 +230,7 @@ class ViveDriverNode(Node):
                 self._fence_mismatch_frame = frame
                 self.get_logger().warn(
                     f"Workspace fence was calibrated in '{self.ws['frame_id']}' but poses are in '{frame}': "
-                    f"fence disabled. Run 'make calibrate' again with the same reference lighthouse.")
+                    f"fence disabled. Paint it again in make setup.")
             return None
         if frame != self._marker_frame:
             self.publish_workspace_marker(frame)
