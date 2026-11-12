@@ -3,9 +3,26 @@
 <package format="3">
   <name>ros2_vive_controller</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>ROS 2 driver and teleoperation bridge for HTC Vive controllers, trackers and base stations (OpenVR / SteamVR).</description>
   <maintainer email="cdonoso@todo.todo">cdonoso</maintainer>
-  <license>TODO: License declaration</license>
+  <license>MIT</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>rcl_interfaces</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <!-- Not in rosdep, installed with pip (see .ci/Dockerfile): openvr, OneEuroFilter. SteamVR is required at runtime. -->
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

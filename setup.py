@@ -19,8 +19,6 @@ setup(
         # 2. Install Config Files (YAML)
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
 
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
-
 
         # 3. Install RViz Files
         (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
@@ -29,8 +27,8 @@ setup(
     zip_safe=True,
     maintainer='cdonoso',
     maintainer_email='clemente.donoso@inria.fr',
-    description='Vive Controller Node',
-    license='TODO',
+    description='ROS 2 driver and teleoperation bridge for HTC Vive controllers, trackers and base stations',
+    license='MIT',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
