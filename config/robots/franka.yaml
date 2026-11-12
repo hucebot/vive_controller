@@ -1,0 +1,30 @@
+# Franka Panda, one arm driven by the right controller (`make franka`).
+#
+# A robot profile describes how the controllers drive the robot. Keys:
+#   description            shown in the setup app
+#   rviz                   start RViz with the drivers
+#   linear_scale           hand-to-robot translation scale, unless LINEAR_SCALE is set in .env
+#   use_origin_lighthouse  publish poses in the origin base station frame (lighthouse_origin)
+#                          instead of SteamVR's world frame. Changes the axes the arm moves along.
+#   arms.<left|right>      one teleop bridge per controller:
+#     bridge_name          node name (default teleop_bridge_<side>)
+#     output_topic, reference_frame, target_frame   required
+#     any other teleop_bridge_node parameter (publish_frequency, rotation_offset,
+#     trackpad_pressed_required, clutch_*, pose_timeout)
+#     buttons              topic per button; the ones left out are /vive/<side>/<button>
+#                          (trigger, trackpad_x, trackpad_y, grip, menu, trackpad_touched, trackpad_pressed)
+description: Franka Panda, single arm (Cartesian impedance controller)
+rviz: true
+linear_scale: 2.0
+use_origin_lighthouse: true
+arms:
+  right:
+    bridge_name: teleop_bridge_franka_tcp
+    output_topic: /cartesian_impedance/equilibrium_pose
+    reference_frame: panda_link0
+    target_frame: panda_hand_tcp
+    publish_frequency: 30.0
+    rotation_offset: [180.0, 0.0, 0.0]
+    buttons:
+      grip: /vive/right/grip_button
+      menu: /panda_gripper/gripper_command

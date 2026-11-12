@@ -165,6 +165,10 @@ services:
       reference_lighthouse_serial:=${REFERENCE_LIGHTHOUSE_SERIAL:-}
       linear_scale:=${LINEAR_SCALE:-1.0}
 
+  # ── Robots ─────────────────────────────────────────────────────────────────
+  # What each robot's arms do (topics, frames, scale, origin base station) is in
+  # config/robots/<robot>.yaml. Empty arguments mean "use the profile".
+
   # ── FRANKA: (Single Arm) ────────────────────────────────────────────────
   franka:
     <<: *base_robot
@@ -179,9 +183,8 @@ services:
       ros2 launch ros2_vive_controller franka_single.launch.py
       serial_right:=${SERIAL_RIGHT:-}
       reference_lighthouse_serial:=${REFERENCE_LIGHTHOUSE_SERIAL:-}
-      only_right:=true
-      linear_scale:=${LINEAR_SCALE:-2.0}
-      clutch_reference:=${CLUTCH_REFERENCE:-tf}
+      linear_scale:=${LINEAR_SCALE:-}
+      clutch_reference:=${CLUTCH_REFERENCE:-}
 
   # ── TIAGO (Dual Arm) ─────────────────────────────────────────────────────
   tiago:
@@ -196,7 +199,8 @@ services:
       ros2 launch ros2_vive_controller tiago_dual.launch.py
       serial_left:=${SERIAL_LEFT:-}
       serial_right:=${SERIAL_RIGHT:-}
-      linear_scale:=${LINEAR_SCALE:-1.0}
+      linear_scale:=${LINEAR_SCALE:-}
+      clutch_reference:=${CLUTCH_REFERENCE:-}
 
   # ── TIAGO (Dual Arm) ─────────────────────────────────────────────────────
   tiago_pro:
@@ -211,7 +215,8 @@ services:
       ros2 launch ros2_vive_controller tiago_pro.launch.py
       serial_left:=${SERIAL_LEFT:-}
       serial_right:=${SERIAL_RIGHT:-}
-      linear_scale:=${LINEAR_SCALE:-1.0}
+      linear_scale:=${LINEAR_SCALE:-}
+      clutch_reference:=${CLUTCH_REFERENCE:-}
 
 
   # ── G1 (Dual Arm) ────────────────────────────────────────────────────────
@@ -226,4 +231,5 @@ services:
       ros2 launch ros2_vive_controller g1_dual.launch.py
       serial_left:=${SERIAL_LEFT:-}
       serial_right:=${SERIAL_RIGHT:-}
-      linear_scale:=${LINEAR_SCALE:-1.0}
+      linear_scale:=${LINEAR_SCALE:-}
+      clutch_reference:=${CLUTCH_REFERENCE:-}

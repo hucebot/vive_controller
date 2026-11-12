@@ -18,6 +18,8 @@ setup(
 
         # 2. Install Config Files (YAML)
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        # Robot profiles (see robot_launch.py)
+        (os.path.join('share', package_name, 'config', 'robots'), glob('config/robots/*.yaml')),
 
 
         # 3. Install RViz Files
