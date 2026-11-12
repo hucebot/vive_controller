@@ -1,5 +1,5 @@
 """Device registry: devices that are switched off and on again must keep their identity."""
-from fake_openvr import CONTROLLER, LIGHTHOUSE, TRACKER, FakeDevice, translation_matrix
+from ros2_vive_controller.testing.fake_openvr import CONTROLLER, LIGHTHOUSE, TRACKER, FakeDevice, translation_matrix
 
 from ros2_vive_controller.openvr_class.openvr_class import convert_to_quaternion, triad_openvr
 

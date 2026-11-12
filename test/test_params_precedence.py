@@ -7,7 +7,7 @@ section of the same file set +-10 m bounds. rclpy matches both sections against 
 import os
 
 import pytest
-from fake_openvr import CONTROLLER, FakeDevice
+from ros2_vive_controller.testing.fake_openvr import CONTROLLER, FakeDevice
 
 from ros2_vive_controller.workspace import write_workspace_file
 

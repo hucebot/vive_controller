@@ -1,5 +1,5 @@
 """Standalone identify tool: device listing with roles, and vibrating each controller."""
-from fake_openvr import CONTROLLER, LIGHTHOUSE, TRACKER, FakeDevice
+from ros2_vive_controller.testing.fake_openvr import CONTROLLER, LIGHTHOUSE, TRACKER, FakeDevice
 
 from ros2_vive_controller import station as st
 from ros2_vive_controller.identify import controllers_to_buzz, current_roles, describe, run

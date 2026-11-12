@@ -2,7 +2,7 @@
 import time
 
 import pytest
-from fake_openvr import CONTROLLER, LIGHTHOUSE, FakeDevice
+from ros2_vive_controller.testing.fake_openvr import CONTROLLER, LIGHTHOUSE, FakeDevice
 
 rclpy = pytest.importorskip('rclpy')
 from std_srvs.srv import Trigger  # noqa: E402
@@ -178,7 +178,7 @@ def test_invalid_reference_lighthouse_pose_is_used_when_allowed(vr_system, drive
 
 
 def test_tracker_node_survives_a_power_cycle(vr_system):
-    from fake_openvr import TRACKER
+    from ros2_vive_controller.testing.fake_openvr import TRACKER
     vr_system.plug(5, FakeDevice(TRACKER, 'LHR-TRK'), announce=False)
     rclpy.init(args=['--ros-args', '-p', 'serial:=LHR-TRK', '-p', 'name:=wrist'])
     try:
@@ -204,7 +204,7 @@ def _fence_params(position, offsets, frame='vive_world', padding=0.1):
 
     offsets: (low, high) distance of the fence faces from the published x coordinate.
     """
-    from fake_openvr import translation_matrix
+    from ros2_vive_controller.testing.fake_openvr import translation_matrix
     from ros2_vive_controller.openvr_class.openvr_class import convert_to_quaternion
     px, py, pz = convert_to_quaternion(translation_matrix(*position))[:3]
     return {
@@ -299,7 +299,7 @@ def test_lighthouse_frame_is_kept_when_its_pose_flickers(vr_system, driver):
 
 def test_degraded_tracking_is_not_published(vr_system, driver):
     """A partly covered controller: pose still flagged valid, but SteamVR only dead-reckons."""
-    from fake_openvr import TrackingResult_Running_OutOfRange
+    from ros2_vive_controller.testing.fake_openvr import TrackingResult_Running_OutOfRange
     _plug_controllers(vr_system)
     node = driver(side='right', serial='LHR-RIGHT')
     node.update()
@@ -311,7 +311,7 @@ def test_degraded_tracking_is_not_published(vr_system, driver):
 
 
 def test_degraded_tracking_can_be_allowed(vr_system, driver):
-    from fake_openvr import TrackingResult_Running_OutOfRange
+    from ros2_vive_controller.testing.fake_openvr import TrackingResult_Running_OutOfRange
     _plug_controllers(vr_system)
     node = driver(side='right', serial='LHR-RIGHT', require_tracking_ok=False)
     vr_system.slots[2].tracking_result = TrackingResult_Running_OutOfRange
@@ -320,7 +320,7 @@ def test_degraded_tracking_can_be_allowed(vr_system, driver):
 
 
 def test_publishing_resumes_after_several_good_samples_without_rebuzzing(vr_system, driver):
-    from fake_openvr import TrackingResult_Running_OK, TrackingResult_Running_OutOfRange
+    from ros2_vive_controller.testing.fake_openvr import TrackingResult_Running_OK, TrackingResult_Running_OutOfRange
     _plug_controllers(vr_system)
     node = driver(side='right', serial='LHR-RIGHT', tracking_ok_samples=3)
     for _ in range(3):

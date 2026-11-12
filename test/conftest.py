@@ -14,7 +14,7 @@ for path in (TEST_DIR, REPO_ROOT):
     if path not in sys.path:
         sys.path.insert(0, path)
 
-import fake_openvr  # noqa: E402
+from ros2_vive_controller.testing import fake_openvr  # noqa: E402
 
 sys.modules['openvr'] = fake_openvr
 
