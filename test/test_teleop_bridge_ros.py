@@ -204,3 +204,25 @@ def test_output_header_does_not_alias_the_driver_message(bridge):
     incoming = send_pose(node, 2.1)
     assert node.pose_pub.messages[-1].header.frame_id == 'base'
     assert incoming.header.frame_id == 'vive_world'
+
+
+def test_last_command_reference_does_not_jump_back_when_tf_lags(bridge):
+    node = bridge(clutch_reference='last_command')
+    send_pose(node, 2.0)
+    send_buttons(node, trigger=1.0)    # first stroke starts from TF (x=0.4)
+    send_pose(node, 2.2)
+    assert last_output_x(node) == pytest.approx(0.6)
+    send_buttons(node, trigger=0.0)
+    send_pose(node, 2.0)
+    send_buttons(node, trigger=1.0)    # TF still says 0.4 (delayed)...
+    send_pose(node, 2.0)
+    assert last_output_x(node) == pytest.approx(0.6)   # ...but no jump back
+    send_pose(node, 2.2)
+    assert last_output_x(node) == pytest.approx(0.8)   # strokes add up
+
+
+def test_last_command_reference_uses_tf_for_the_first_stroke(bridge):
+    node = bridge(with_tf=False, clutch_reference='last_command')
+    send_pose(node, 2.0)
+    send_buttons(node, trigger=1.0)
+    assert not node.activated

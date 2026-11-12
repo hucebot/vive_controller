@@ -30,6 +30,12 @@ class TeleopBridgeNode(Node):
         self.declare_parameter('clutch_release_threshold', 1.0)
         # Disengage when no pose arrives for this long while engaged (seconds, 0 disables).
         self.declare_parameter('pose_timeout', 0.3)
+        # Where a new clutch stroke starts from:
+        #   'tf'           (default, original) the end effector pose read from TF
+        #   'last_command' the last pose this bridge sent, which the arm is being held at. TF is then
+        #                  only used for the first stroke, so a delayed TF cannot make the arm jump
+        #                  back to an old position when the clutch is pressed again.
+        self.declare_parameter('clutch_reference', 'tf')
 
         self.button_keys = [
             'trigger', 'trackpad_x', 'trackpad_y',
@@ -62,6 +68,10 @@ class TeleopBridgeNode(Node):
             release = engage
         self.clutch = Clutch(engage, release)
         self.pose_timeout = self.get_parameter('pose_timeout').value
+        self.clutch_reference = self.get_parameter('clutch_reference').value
+        if self.clutch_reference not in ('tf', 'last_command'):
+            self.get_logger().warn(f"Unknown clutch_reference '{self.clutch_reference}', using 'tf'.")
+            self.clutch_reference = 'tf'
         self.trackpad_pressed_required = parse_bool(self.get_parameter('trackpad_pressed_required').value)
 
         self.latest_pose = None
@@ -121,6 +131,15 @@ class TeleopBridgeNode(Node):
         if self.latest_pose is None or self._pose_is_stale():
             self._activation_failed('no recent pose from the Vive driver')
             return
+
+        if self.clutch_reference == 'last_command' and self.last_output_msg is not None:
+            # Continue from the pose the arm is being held at: no jump, whatever TF says.
+            self.ee_translation = Point(x=self.last_output_msg.pose.position.x,
+                                        y=self.last_output_msg.pose.position.y,
+                                        z=self.last_output_msg.pose.position.z)
+            self._save_joy_reference()
+            return
+
         # Non-blocking check: never wait for TF inside a callback.
         if not self.tf_buffer.can_transform(ref, target, rclpy.time.Time()):
             self._activation_failed(f'no transform from {ref} to {target} yet')
@@ -132,6 +151,9 @@ class TeleopBridgeNode(Node):
             return
 
         self.ee_translation = transform.transform.translation
+        self._save_joy_reference()
+
+    def _save_joy_reference(self):
         p = self.latest_pose.pose.position
         self.joy_translation = Point(x=p.x, y=p.y, z=p.z)
         self.activated = True

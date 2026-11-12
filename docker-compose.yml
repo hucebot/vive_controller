@@ -181,6 +181,7 @@ services:
       reference_lighthouse_serial:=${REFERENCE_LIGHTHOUSE_SERIAL:-}
       only_right:=true
       linear_scale:=${LINEAR_SCALE:-2.0}
+      clutch_reference:=${CLUTCH_REFERENCE:-tf}
 
   # ── TIAGO (Dual Arm) ─────────────────────────────────────────────────────
   tiago:

@@ -43,6 +43,11 @@ def generate_launch_description():
         'target_frame_franka_tcp', default_value='panda_hand_tcp', description='Target frame for Franka TCP controller'
     )
 
+    clutch_reference_arg = DeclareLaunchArgument(
+        'clutch_reference', default_value='tf',
+        description="Where a new clutch stroke starts: 'tf' (end effector TF) or 'last_command'"
+    )
+
     # --- Hardware Driver Inclusion ---
     include_vive_teleop = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(included_launch_path),
@@ -70,6 +75,7 @@ def generate_launch_description():
             'target_frame': LaunchConfiguration('target_frame_franka_tcp'),
             'reference_frame': LaunchConfiguration('reference_frame'),
             'rotation_offset': [180.0, 0.0, 0.0],
+            'clutch_reference': LaunchConfiguration('clutch_reference'),
             'trigger_topic': '/vive/right/trigger',
             'trackpad_x_topic': '/vive/right/trackpad_x',
             'trackpad_y_topic': '/vive/right/trackpad_y',
@@ -89,6 +95,7 @@ def generate_launch_description():
         publish_frequency_arg,
         reference_frame_arg,
         target_frame_franka_tcp_arg,
+        clutch_reference_arg,
         include_vive_teleop,
         teleop_bridge_franka_tcp,
     ])
