@@ -7,7 +7,10 @@
             <Interfaces>
                 <NetworkInterface name="enx607d09178f25" />
             </Interfaces>
-            <AllowMulticast>true</AllowMulticast>
+            <!-- Multicast for discovery only, data point-to-point: with "true", the robot's streamed
+                 data (/tf, joint states) mostly never reached this machine (0 msg/s vs 20 Hz), so the
+                 end effector TF was stale and the arm jumped back on each new clutch. -->
+            <AllowMulticast>spdp</AllowMulticast>
         </General>
         <Discovery>
             <Peers>
