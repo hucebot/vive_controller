@@ -8,6 +8,7 @@ import os
 import pytest
 
 from ros2_vive_controller import launch_config as lc
+from ros2_vive_controller import station as st
 from ros2_vive_controller.robot_launch import RIGHT_DRIVER_DELAY, drivers_nodes, robot_nodes
 
 REPO_CONFIG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config')
@@ -61,11 +62,14 @@ EXPECTED_RVIZ = {'franka': True, 'tiago': True, 'tiago_pro': True, 'g1': False}
 USES_LIGHTHOUSE = {'franka': True, 'tiago': False, 'tiago_pro': False, 'g1': False}
 
 DEVICES = {'serial_left': 'LHR-L', 'serial_right': 'LHR-R', 'reference_lighthouse_serial': 'LHB-O'}
+# What `make <robot>` passes when there is no station file: the .env serials.
+ENV = {'SERIAL_LEFT': 'LHR-L', 'SERIAL_RIGHT': 'LHR-R # comment', 'REFERENCE_LIGHTHOUSE_SERIAL': 'LHB-O'}
 
 
 def _nodes(robot, **kwargs):
     profile = lc.load_profile(robot, REPO_CONFIG)
-    return robot_nodes(profile, DEVICES, REPO_CONFIG, SHARE, **kwargs)
+    devices, _ = lc.resolve_devices({}, st.empty(), ENV, profile['use_origin_lighthouse'])
+    return robot_nodes(profile, devices, REPO_CONFIG, SHARE, **kwargs)
 
 
 def _by_name(specs):

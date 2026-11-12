@@ -10,6 +10,14 @@ x-ros-env: &ros_env
   ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-1}
   RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
 
+# ── RULE: Vive serials from .env ───────────────────────────────────────────
+# Environment variables, not launch arguments: config/station.yaml (written by `make setup`)
+# takes precedence, and these are the fallback for a machine that has none.
+x-vive-env: &vive_env
+  SERIAL_RIGHT: ${SERIAL_RIGHT:-}
+  SERIAL_LEFT: ${SERIAL_LEFT:-}
+  REFERENCE_LIGHTHOUSE_SERIAL: ${REFERENCE_LIGHTHOUSE_SERIAL:-}
+
 # ── RULE: Common base for the controller robots ────────────────────────────
 # A template, not a service: as a service without a profile it was started by every
 # `make <robot>` too, adding a second pair of drivers and a second RViz.
@@ -27,7 +35,7 @@ x-base-robot: &base_robot
   pid: host
   privileged: true
   environment:
-    <<: [*common_env, *ros_env]
+    <<: [*common_env, *ros_env, *vive_env]
     CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/cyclonedds.xml
   volumes:
     - /tmp/.X11-unix:/tmp/.X11-unix
@@ -160,9 +168,6 @@ services:
     container_name: ros2_vive_drivers
     command: >
       ros2 launch ros2_vive_controller vive_teleop.launch.py
-      serial_left:=${SERIAL_LEFT:-}
-      serial_right:=${SERIAL_RIGHT:-}
-      reference_lighthouse_serial:=${REFERENCE_LIGHTHOUSE_SERIAL:-}
       linear_scale:=${LINEAR_SCALE:-1.0}
 
   # ── Robots ─────────────────────────────────────────────────────────────────
@@ -177,12 +182,10 @@ services:
     env_file:
       - .env
     environment:
-      <<: [*common_env, *ros_env]
+      <<: [*common_env, *ros_env, *vive_env]
       CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/franka_cyclonedds.xml
     command: >
       ros2 launch ros2_vive_controller franka_single.launch.py
-      serial_right:=${SERIAL_RIGHT:-}
-      reference_lighthouse_serial:=${REFERENCE_LIGHTHOUSE_SERIAL:-}
       linear_scale:=${LINEAR_SCALE:-}
       clutch_reference:=${CLUTCH_REFERENCE:-}
 
@@ -193,12 +196,10 @@ services:
     container_name: ros2_vive_tiago
     env_file: .env
     environment:
-      <<: [*common_env, *ros_env]
+      <<: [*common_env, *ros_env, *vive_env]
       CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/tiago_cyclonedds.xml
     command: >
       ros2 launch ros2_vive_controller tiago_dual.launch.py
-      serial_left:=${SERIAL_LEFT:-}
-      serial_right:=${SERIAL_RIGHT:-}
       linear_scale:=${LINEAR_SCALE:-}
       clutch_reference:=${CLUTCH_REFERENCE:-}
 
@@ -209,12 +210,10 @@ services:
     container_name: ros2_vive_tiago_pro
     env_file: .env
     environment:
-      <<: [*common_env, *ros_env]
+      <<: [*common_env, *ros_env, *vive_env]
       CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/tiago_cyclonedds.xml
     command: >
       ros2 launch ros2_vive_controller tiago_pro.launch.py
-      serial_left:=${SERIAL_LEFT:-}
-      serial_right:=${SERIAL_RIGHT:-}
       linear_scale:=${LINEAR_SCALE:-}
       clutch_reference:=${CLUTCH_REFERENCE:-}
 
@@ -225,11 +224,9 @@ services:
     profiles: [g1]
     container_name: ros2_vive_g1
     environment:
-      <<: [*common_env, *ros_env]
+      <<: [*common_env, *ros_env, *vive_env]
       CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/cyclonedds.xml
     command: >
       ros2 launch ros2_vive_controller g1_dual.launch.py
-      serial_left:=${SERIAL_LEFT:-}
-      serial_right:=${SERIAL_RIGHT:-}
       linear_scale:=${LINEAR_SCALE:-}
       clutch_reference:=${CLUTCH_REFERENCE:-}

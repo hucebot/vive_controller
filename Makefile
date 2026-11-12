@@ -59,10 +59,9 @@ g1: gui-perms ## Start G1 Dual Arm
 	docker compose --profile g1 up
 
 # --- Utilities ---
-calibrate: gui-perms ## Paint the workspace fence with the right controller (writes config/workspace.yaml)
-	# Same serial and reference lighthouse as teleop, so the fence is recorded in the same frame
-	docker compose --profile drivers run --rm drivers ros2 launch ros2_vive_controller calibration.launch.py \
-		serial:=$(strip $(SERIAL_RIGHT)) reference_lighthouse_serial:=$(strip $(REFERENCE_LIGHTHOUSE_SERIAL))
+calibrate: gui-perms ## Paint the right arm's workspace fence in RViz (saved in config/station.yaml); SIDE=left for the left arm
+	# Same controllers and origin frame as teleop (config/station.yaml, then .env), so the fence is in the same frame
+	docker compose --profile drivers run --rm drivers ros2 launch ros2_vive_controller calibration.launch.py side:=$(or $(SIDE),right)
 
 IDENTIFY_ENV := -e SERIAL_RIGHT="$(strip $(SERIAL_RIGHT))" -e SERIAL_LEFT="$(strip $(SERIAL_LEFT))" \
 	-e REFERENCE_LIGHTHOUSE_SERIAL="$(strip $(REFERENCE_LIGHTHOUSE_SERIAL))"

@@ -4,25 +4,27 @@
 Standalone: it needs SteamVR (the Docker image) but no ROS nodes and no robot. `make identify`
 runs it inside the running vive container, or in a one-off container when none is running.
 
-The roles shown come from the SERIAL_RIGHT, SERIAL_LEFT and REFERENCE_LIGHTHOUSE_SERIAL
-environment variables (the .env values, passed in by the Makefile).
+The roles shown come from config/station.yaml (written by `make setup`), falling back to the
+SERIAL_RIGHT, SERIAL_LEFT and REFERENCE_LIGHTHOUSE_SERIAL values of .env, as for teleop.
 """
 import argparse
 import os
 import sys
 import time
 
-ROLE_VARIABLES = ('SERIAL_RIGHT', 'SERIAL_LEFT', 'REFERENCE_LIGHTHOUSE_SERIAL')
-NOT_CONFIGURED = 'not in .env'
+from ros2_vive_controller import station as st
+
+NOT_CONFIGURED = 'no role'
 
 
-def roles_from_env(environ=os.environ):
-    """{serial: variable name} for the serials set in .env (inline comments ignored)."""
+def current_roles(station, environ=os.environ):
+    """{serial: 'right hand (config/station.yaml)', ...}, resolved as the launch files do."""
+    labels = {'right': 'right hand', 'left': 'left hand', 'origin_lighthouse': 'origin base station'}
     roles = {}
-    for name in ROLE_VARIABLES:
-        value = environ.get(name, '').split('#')[0].strip()
-        if value:
-            roles[value] = name
+    for role in st.ROLES:
+        serial, source = st.resolve_device(role, '', station, environ)
+        if serial:
+            roles[serial] = f'{labels[role]} ({source})'
     return roles
 
 
@@ -83,9 +85,9 @@ def describe(vr, roles):
                      f'{roles.get(serial, NOT_CONFIGURED)}')
     if not devices:
         lines.append('  (no device found: are the controllers switched on and the base stations powered?)')
-    for serial, name in roles.items():
+    for serial, role in roles.items():
         if vr.get_device_by_serial(serial) is None:
-            lines.append(f'  ! {name}={serial} is not connected')
+            lines.append(f'  ! {serial}, the {role}, is not connected')
     return lines
 
 
@@ -99,11 +101,14 @@ def buzz(device, seconds, sleep=time.sleep, clock=time.monotonic):
 
 def controllers_to_buzz(vr, roles, only_serial=None):
     """Controllers in order: right, left, then the others."""
-    order = {'SERIAL_RIGHT': 0, 'SERIAL_LEFT': 1}
+    def rank(device):
+        role = roles.get(device.get_serial(), '')
+        return (0 if role.startswith('right') else 1 if role.startswith('left') else 2, device.get_serial())
+
     controllers = [d for d in vr.devices.values() if d.device_class == 'Controller']
     if only_serial:
         controllers = [d for d in controllers if d.get_serial() == only_serial]
-    return sorted(controllers, key=lambda d: (order.get(roles.get(d.get_serial()), 2), d.get_serial()))
+    return sorted(controllers, key=rank)
 
 
 def run(vr, roles, only_serial=None, seconds=1.5, min_wait=2.0, max_wait=8.0, lighthouse_wait=30.0, out=print):
@@ -136,9 +141,11 @@ def main(argv=None):
                         help='max time to wait for a base station to show up (s, 0 to skip)')
     args = parser.parse_args(argv)
 
+    from ros2_vive_controller.launch_config import config_dir
     from ros2_vive_controller.openvr_class.openvr_class import triad_openvr
+    roles = current_roles(st.load(st.path_in(config_dir())))
     vr = triad_openvr()
-    return run(vr, roles_from_env(), args.serial, args.seconds, max_wait=args.wait,
+    return run(vr, roles, args.serial, args.seconds, max_wait=args.wait,
                lighthouse_wait=args.lighthouse_wait)
 
 

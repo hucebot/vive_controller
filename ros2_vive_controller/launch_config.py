@@ -1,10 +1,14 @@
-"""Robot profiles (config/robots/<robot>.yaml) turned into node parameters for the launch files.
+"""Robot profiles (config/robots/<robot>.yaml) and the station file (config/station.yaml) turned
+into node parameters for the launch files.
 
 Plain Python, no launch imports, so it can be tested directly. robot_launch.py builds the nodes.
 """
 import os
 
 import yaml
+
+from ros2_vive_controller import station as st
+from ros2_vive_controller.station import clean_value  # noqa: F401  (re-exported)
 
 PACKAGE = 'ros2_vive_controller'
 # Compose mounts ./config here. Files created after the image was built (a new profile, the fence)
@@ -117,14 +121,19 @@ def bridge_parameters(side, arm, clutch_reference=''):
     return params
 
 
-def driver_parameters(side, serial, lighthouse_serial, linear_scale):
-    """Per-side parameters of vive_node (the defaults come from config/vive.params.yaml)."""
-    return {
+def driver_parameters(side, serial, lighthouse_serial, linear_scale, fence=None):
+    """Per-side parameters of vive_node (the defaults come from config/vive.params.yaml).
+
+    fence: this arm's fence from the station file; it overrides config/workspace.yaml.
+    """
+    params = {
         'side': side,
         'linear_scale': float(linear_scale),
         'serial': serial,
         'reference_lighthouse_serial': lighthouse_serial,
     }
+    params.update(st.fence_parameters(fence))
+    return params
 
 
 def driver_parameter_files(config):
@@ -136,6 +145,21 @@ def driver_parameter_files(config):
     return files
 
 
-def clean_value(value):
-    """A .env value without its inline comment ('LHR-1234 # right hand' -> 'LHR-1234')."""
-    return (value or '').split('#')[0].strip()
+# Launch argument -> station role
+DEVICE_ROLES = (('serial_left', 'left'), ('serial_right', 'right'),
+                ('reference_lighthouse_serial', 'origin_lighthouse'))
+
+
+def resolve_devices(arguments, station, environ, use_origin_lighthouse=True):
+    """Serials by launch argument name, and where each came from (for the launch log).
+
+    Order: launch argument, station file, .env. A robot whose profile does not use the origin base
+    station gets none, unless it is given as a launch argument.
+    """
+    devices, sources = {}, {}
+    for name, role in DEVICE_ROLES:
+        devices[name], sources[name] = st.resolve_device(role, arguments.get(name, ''), station, environ)
+    if not use_origin_lighthouse and sources['reference_lighthouse_serial'] != st.SOURCE_ARGUMENT:
+        devices['reference_lighthouse_serial'] = ''
+        sources['reference_lighthouse_serial'] = 'not used by this robot'
+    return devices, sources

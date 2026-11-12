@@ -9,26 +9,29 @@ from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import JointState
 from visualization_msgs.msg import Marker
 
-from ros2_vive_controller.workspace import bounds_from_points, write_workspace_file
+from ros2_vive_controller import station as st
+from ros2_vive_controller.workspace import bounds_from_points
 
 
 class CalibrationNode(Node):
-    """Paint the operator's workspace with the right controller and save it as the fence.
+    """Paint one arm's workspace with its controller and save it as that arm's fence.
 
-    The bounds are written to ``workspace_file`` together with the frame the poses were in, so
-    the driver only applies them when it publishes in that same frame.
+    The bounds are written to the station file (config/station.yaml, ``workspace.<side>``) together
+    with the frame the poses were in, so the driver only applies them in that same frame. The setup
+    app (`make setup`) does the same from a browser.
     """
 
     def __init__(self):
         super().__init__('vive_calibration')
 
         # --- Parameters ---
-        self.declare_parameter(
-            'workspace_file', '/ros2_ws/src/ros2_vive_controller/config/workspace.yaml')
+        self.declare_parameter('station_file', '/ros2_ws/src/ros2_vive_controller/config/station.yaml')
+        self.declare_parameter('side', 'right')
         # Grow the painted box by this much on every face (m).
         self.declare_parameter('margin', 0.05)
 
-        self.workspace_file = self.get_parameter('workspace_file').value
+        self.station_file = self.get_parameter('station_file').value
+        self.side = self.get_parameter('side').value
         self.margin = self.get_parameter('margin').value
 
         # --- State ---
@@ -39,9 +42,9 @@ class CalibrationNode(Node):
 
         # --- Subscribers ---
         self.sub_pose = self.create_subscription(
-            PoseStamped, '/vive/right/pose', self.pose_cb, 10)
+            PoseStamped, f'/vive/{self.side}/pose', self.pose_cb, 10)
         self.sub_joy = self.create_subscription(
-            JointState, '/vive/right/joint_states', self.joy_cb, 10)
+            JointState, f'/vive/{self.side}/joint_states', self.joy_cb, 10)
 
         # --- Publishers ---
         self.pub_marker = self.create_publisher(
@@ -59,8 +62,8 @@ class CalibrationNode(Node):
         self.publish_heartbeat()
 
         self.get_logger().info("AUTO-SAVE CALIBRATION READY.")
-        self.get_logger().info(f"Target file: {self.workspace_file}")
-        self.get_logger().info("Hold RIGHT TRIGGER to paint. Press CTRL+C to SAVE and EXIT.")
+        self.get_logger().info(f"Target file: {self.station_file} ({self.side} arm)")
+        self.get_logger().info(f"Hold the {self.side.upper()} TRIGGER to paint. Press CTRL+C to SAVE and EXIT.")
 
     def publish_heartbeat(self):
         msg = Bool()
@@ -155,11 +158,12 @@ class CalibrationNode(Node):
             return
 
         try:
-            backup = write_workspace_file(self.workspace_file, bounds, self.frame_id)
+            station = st.set_fence(st.load(self.station_file), self.side, bounds, self.frame_id)
+            backup = st.save(self.station_file, station, writer='calibration_node (make calibrate)')
             if backup:
                 self.get_logger().info(f"Backup created at: {backup}")
             self.get_logger().info("="*40)
-            self.get_logger().info(f"SUCCESS! Workspace fence saved: {self.workspace_file}")
+            self.get_logger().info(f"SUCCESS! {self.side.capitalize()} arm fence saved: {self.station_file}")
             self.get_logger().info(f"Frame: {self.frame_id}")
             for axis in 'xyz':
                 self.get_logger().info(f"  {axis}: [{bounds[axis + '_min']}, {bounds[axis + '_max']}]")

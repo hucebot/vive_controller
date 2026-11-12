@@ -12,7 +12,9 @@
 #### Tiago specific cyclonedds
 config/cyclonedds.xml
 
-#### Workspace fence written by `make calibrate` (local to each setup)
+#### Local to each machine: its setup (`make setup`) and the old-style fence file
+config/station.yaml
+config/station.yaml.tmp
 config/workspace.yaml
 config/*.bak
 

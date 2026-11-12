@@ -1,7 +1,8 @@
-"""Standalone identify tool: device listing with .env roles, and vibrating each controller."""
+"""Standalone identify tool: device listing with roles, and vibrating each controller."""
 from fake_openvr import CONTROLLER, LIGHTHOUSE, TRACKER, FakeDevice
 
-from ros2_vive_controller.identify import controllers_to_buzz, describe, roles_from_env, run
+from ros2_vive_controller import station as st
+from ros2_vive_controller.identify import controllers_to_buzz, current_roles, describe, run
 from ros2_vive_controller.openvr_class.openvr_class import triad_openvr
 
 ENV = {'SERIAL_RIGHT': 'LHR-RIGHT # Replace with your right controller ',
@@ -17,19 +18,29 @@ def _setup(vr_system):
     return triad_openvr()
 
 
+def roles_from_env(environ):
+    return current_roles(st.empty(), environ)
+
+
 def test_roles_ignore_inline_comments_and_spaces():
-    assert roles_from_env(ENV) == {'LHR-RIGHT': 'SERIAL_RIGHT', 'LHR-ABSENT': 'SERIAL_LEFT',
-                                   'LHB-ORIGIN': 'REFERENCE_LIGHTHOUSE_SERIAL'}
+    assert roles_from_env(ENV) == {'LHR-RIGHT': 'right hand (.env)', 'LHR-ABSENT': 'left hand (.env)',
+                                   'LHB-ORIGIN': 'origin base station (.env)'}
     assert roles_from_env({'SERIAL_LEFT': ''}) == {}
+
+
+def test_station_roles_win_over_env():
+    station = st.normalize({'devices': {'right': 'LHR-OTHER', 'left': ''}})
+    assert current_roles(station, ENV) == {'LHR-OTHER': 'right hand (config/station.yaml)',
+                                           'LHB-ORIGIN': 'origin base station (.env)'}
 
 
 def test_listing_shows_roles_battery_and_missing_serials(vr_system):
     vr = _setup(vr_system)
     text = '\n'.join(describe(vr, roles_from_env(ENV)))
-    assert 'LHR-RIGHT' in text and 'SERIAL_RIGHT' in text and 'battery  80%' in text
-    assert 'LHR-OTHER' in text and 'not in .env' in text
-    assert 'LHB-ORIGIN' in text and 'REFERENCE_LIGHTHOUSE_SERIAL' in text
-    assert '! SERIAL_LEFT=LHR-ABSENT is not connected' in text
+    assert 'LHR-RIGHT' in text and 'right hand (.env)' in text and 'battery  80%' in text
+    assert 'LHR-OTHER' in text and 'no role' in text
+    assert 'LHB-ORIGIN' in text and 'origin base station' in text
+    assert '! LHR-ABSENT, the left hand (.env), is not connected' in text
 
 
 def test_right_controller_buzzes_first(vr_system):
