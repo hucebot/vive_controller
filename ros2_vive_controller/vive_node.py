@@ -71,7 +71,9 @@ class ViveDriverNode(Node):
         self.vr = triad_openvr()
         self.connected = False
         self._last_missing_log = None
+        self._last_resync = 0.0
         self._lh_state = None
+        self._lh_pose = None
 
         # --- Publishers & Services ---
         self.srv_identify = self.create_service(Trigger, 'identify', self.identify_callback)
@@ -163,22 +165,33 @@ class ViveDriverNode(Node):
         if not self.ref_lh_serial:
             return None
         lh = self.vr.get_device_by_serial(self.ref_lh_serial)
+        lh_pose = None
+        if lh is not None:
+            lh_pose = lh.get_pose_quaternion()
+            if lh_pose is None and self.allow_invalid_lh_pose:
+                lh_pose = lh.get_pose_quaternion(require_valid=False)
+        if lh_pose is not None:
+            if self._lh_pose is None:
+                self._log_lighthouse_state('ok', f"Using Lighthouse {self.ref_lh_serial} as origin frame.", False)
+            self._lh_pose = lh_pose
+            return lh_pose
+        if self._lh_pose is not None:
+            # Base stations do not move: keep the last known pose instead of switching the published
+            # frame back to vive_world, which would make every pose jump.
+            self._log_lighthouse_state(
+                'held', f"Lighthouse {self.ref_lh_serial} pose unavailable for now: keeping its last known pose.",
+                True)
+            return self._lh_pose
         if lh is None:
             self._log_lighthouse_state(
                 'missing', f"Lighthouse {self.ref_lh_serial} not found. Using default OpenVR world frame.", True)
-            return None
-        lh_pose = lh.get_pose_quaternion()
-        if lh_pose is None and self.allow_invalid_lh_pose:
-            lh_pose = lh.get_pose_quaternion(require_valid=False)
-        if lh_pose is None:
+        else:
             self._log_lighthouse_state(
                 'invalid',
                 f"Lighthouse {self.ref_lh_serial} reports no valid pose (Base Station 2.0?). Staying in "
                 f"{self.frame_id}. Set allow_invalid_lighthouse_pose:=true to use its stored calibration.",
                 True)
-            return None
-        self._log_lighthouse_state('ok', f"Using Lighthouse {self.ref_lh_serial} as origin frame.", False)
-        return lh_pose
+        return None
 
     def calibration_callback(self, msg):
         if msg.data:
@@ -269,6 +282,12 @@ class ViveDriverNode(Node):
 
         # 2. Check controller (looked up by serial every cycle, never by a cached name)
         controller = self.vr.get_device_by_serial(self.serial)
+        if controller is None and time.monotonic() - self._last_resync >= 1.0:
+            # Don't rely only on activation events: SteamVR does not always send one when a device
+            # comes back (seen in the lab with a USB controller that was switched off and on).
+            self._last_resync = time.monotonic()
+            if self.vr.sync_connected_devices():
+                controller = self.vr.get_device_by_serial(self.serial)
         if controller is None:
             self._report_missing_controller()
             return

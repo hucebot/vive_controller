@@ -283,6 +283,21 @@ class triad_openvr():
                 if event.trackedDeviceIndex in self.device_index_map:
                     self.remove_tracked_device(event.trackedDeviceIndex)
 
+    def sync_connected_devices(self):
+        """Register connected devices that SteamVR did not announce with an activation event.
+
+        Returns the names of the devices added.
+        """
+        poses = self.vr.getDeviceToAbsoluteTrackingPose(openvr.TrackingUniverseStanding, 0,
+                                                        openvr.k_unMaxTrackedDeviceCount)
+        added = []
+        for i in range(openvr.k_unMaxTrackedDeviceCount):
+            if poses[i].bDeviceIsConnected and i not in self.device_index_map:
+                name = self.add_tracked_device(i)
+                if name:
+                    added.append(name)
+        return added
+
     def get_device_by_serial(self, serial):
         """The connected device with this serial number, or None."""
         if not serial:

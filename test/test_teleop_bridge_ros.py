@@ -226,3 +226,23 @@ def test_last_command_reference_uses_tf_for_the_first_stroke(bridge):
     send_pose(node, 2.0)
     send_buttons(node, trigger=1.0)
     assert not node.activated
+
+
+def test_pose_frame_change_disengages(bridge):
+    node = bridge()
+    send_pose(node, 2.0)
+    send_buttons(node, trigger=1.0)
+    assert node.activated
+    send_pose(node, 2.0)                           # command sent: x = 0.4
+    msg = PoseStamped()
+    msg.header.frame_id = 'lighthouse_origin'      # driver switched frames mid-stroke
+    msg.pose.position.x = 5.0
+    msg.pose.orientation.w = 1.0
+    node.pose_callback(msg)
+    assert not node.activated
+    assert last_output_x(node) == pytest.approx(0.4)   # no jump: still the last command
+    send_buttons(node, trigger=1.0)                    # still held: stays off
+    assert not node.activated
+    send_buttons(node, trigger=0.0)
+    send_buttons(node, trigger=1.0)
+    assert node.activated

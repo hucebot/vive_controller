@@ -262,3 +262,35 @@ def test_fence_is_off_while_calibrating(vr_system, driver):
     node.is_calibrating = True
     node.update()
     assert len(node.pub_pose.messages) == 1
+
+
+def test_controller_back_without_activation_event_is_picked_up(vr_system, driver):
+    _plug_controllers(vr_system)
+    node = driver(side='right', serial='LHR-RIGHT')
+    node.update()
+    vr_system.unplug(2)
+    node.update()
+    vr_system.slots[2].connected = True          # USB device re-enumerated, SteamVR sent nothing
+    node._last_resync = 0.0                      # resync runs at most once a second
+    node.update()
+    node.update()
+    assert _published_triggers(node) == [0.9, 0.9, 0.9]
+
+
+def test_lighthouse_frame_is_kept_when_its_pose_flickers(vr_system, driver):
+    """Switching back to vive_world for a moment would make every published pose jump."""
+    _plug_controllers(vr_system)
+    _plug_lighthouse(vr_system, pose_valid=True)
+    node = driver(side='right', serial='LHR-RIGHT', reference_lighthouse_serial='LHB-ORIGIN')
+    node.update()
+    first = node.pub_pose.messages[-1].pose.position
+    vr_system.slots[3].pose_valid = False
+    node.update()
+    node.update()
+    vr_system.slots[3].pose_valid = True
+    node.update()
+    frames = [m.header.frame_id for m in node.pub_pose.messages]
+    assert frames == ['lighthouse_origin'] * 4
+    last = node.pub_pose.messages[-1].pose.position
+    assert (last.x, last.y, last.z) == pytest.approx((first.x, first.y, first.z))
+    assert node.log.text('warn').count('keeping its last known pose') == 1

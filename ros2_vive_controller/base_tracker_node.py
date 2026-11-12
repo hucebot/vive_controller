@@ -169,5 +169,9 @@ class BaseViveTracker3_0Node(Node):
     def watchdog(self):
         """Base watchdog: poll VR events and retry lighthouse calibration."""
         self.vr.poll_vr_events()
+        # SteamVR does not always announce a device that comes back: look at the slots once a second.
+        self._watchdog_ticks = getattr(self, '_watchdog_ticks', 0) + 1
+        if self._watchdog_ticks % 20 == 0:
+            self.vr.sync_connected_devices()
         if self.reference_lighthouse_serial and self.T_lighthouse_inv is None:
             self._compute_lighthouse_inverse()

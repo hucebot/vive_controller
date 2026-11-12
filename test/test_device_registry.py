@@ -174,3 +174,16 @@ def test_rename_keeps_lookups_consistent(vr_system):
     vr_system.replug(3)
     vr.poll_vr_events()
     assert vr.get_device_name_by_serial('LHB-ORIGIN') == 'origin'
+
+
+def test_sync_registers_a_device_that_came_back_without_an_event(vr_system):
+    """Seen in the lab: a USB controller switched off and on was not announced again."""
+    vr = _two_controllers_and_lighthouse(vr_system)
+    vr_system.unplug(1)
+    vr.poll_vr_events()
+    vr_system.slots[1].connected = True          # back, but no activation event
+    vr.poll_vr_events()
+    assert vr.get_device_by_serial('LHR-LEFT') is None
+    assert vr.sync_connected_devices() == [_name_of(vr, 'LHR-LEFT')]
+    assert vr.get_device_by_serial('LHR-LEFT').index == 1
+    assert vr.sync_connected_devices() == []     # nothing else to add

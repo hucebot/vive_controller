@@ -80,6 +80,7 @@ class TeleopBridgeNode(Node):
         self.ee_translation = None
         self.joy_translation = None
         self.activated = False
+        self.activation_frame = None
         self.last_output_msg = None
 
         # --- 4. Subscribers ---
@@ -156,6 +157,7 @@ class TeleopBridgeNode(Node):
     def _save_joy_reference(self):
         p = self.latest_pose.pose.position
         self.joy_translation = Point(x=p.x, y=p.y, z=p.z)
+        self.activation_frame = self.latest_pose.header.frame_id
         self.activated = True
         self.get_logger().info('Teleop Activated: Reference frames saved.')
 
@@ -180,6 +182,11 @@ class TeleopBridgeNode(Node):
             self.deactivate(f'no pose for more than {self.pose_timeout:.2f} s, release the trigger and press it again')
 
     def pose_callback(self, msg):
+        if self.activated and msg.header.frame_id != self.activation_frame:
+            # Deltas across two frames are meaningless and would make the arm jump.
+            self.clutch.force_release()
+            self.deactivate(f"pose frame changed from '{self.activation_frame}' to '{msg.header.frame_id}', "
+                            f"release the trigger and press it again")
         self.latest_pose = msg
         self.latest_pose_time = self.get_clock().now()
         if self.get_parameter('publish_frequency').value <= 0:
