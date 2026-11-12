@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 import time
 import rclpy
-import numpy as np
-from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile
 from geometry_msgs.msg import PoseStamped, TransformStamped
@@ -12,6 +10,7 @@ from visualization_msgs.msg import Marker
 from std_srvs.srv import Trigger
 from tf2_ros import TransformBroadcaster
 from OneEuroFilter import OneEuroFilter
+from ros2_vive_controller.frames import LIGHTHOUSE_FRAME, origin_from_lighthouse, relative_pose
 from ros2_vive_controller.openvr_class.openvr_class import triad_openvr, tracking_ok, tracking_result_name
 from ros2_vive_controller.workspace import OUTSIDE, WARNING, classify
 
@@ -238,23 +237,6 @@ class ViveDriverNode(Node):
             self._marker_frame = frame
         return classify(position, self.ws, self.ws['pad'])
 
-    def _compute_relative_pose(self, target_pose, reference_pose):
-        """Transforms target_pose into the coordinate frame of reference_pose."""
-        T_ref = np.eye(4)
-        T_ref[:3, 3] = reference_pose[:3]
-        T_ref[:3, :3] = R.from_quat(reference_pose[3:]).as_matrix()
-
-        T_target = np.eye(4)
-        T_target[:3, 3] = target_pose[:3]
-        T_target[:3, :3] = R.from_quat(target_pose[3:]).as_matrix()
-
-        T_rel = np.linalg.inv(T_ref) @ T_target
-
-        pos = T_rel[:3, 3]
-        quat = R.from_matrix(T_rel[:3, :3]).as_quat()
-
-        return [pos[0], pos[1], pos[2], quat[0], quat[1], quat[2], quat[3]]
-
     def _make_tf(self, pose, parent_frame, child_frame):
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
@@ -269,21 +251,6 @@ class ViveDriverNode(Node):
         t.transform.rotation.z = pose[5]
         t.transform.rotation.w = pose[6]
         return t
-
-    def _apply_rotation_offset(self, pose, axis='z', angle_degrees=180):
-        """Rotates a pose around a local axis to correct hardware alignments."""
-        T = np.eye(4)
-        T[:3, 3] = pose[:3]
-        T[:3, :3] = R.from_quat(pose[3:]).as_matrix()
-
-        T_rot = np.eye(4)
-        T_rot[:3, :3] = R.from_euler(axis, angle_degrees, degrees=True).as_matrix()
-
-        T_new = T @ T_rot
-
-        pos = T_new[:3, 3]
-        quat = R.from_matrix(T_new[:3, :3]).as_quat()
-        return [pos[0], pos[1], pos[2], quat[0], quat[1], quat[2], quat[3]]
 
     def update(self):
         # 1. Poll OpenVR to catch devices that appear or disappear
@@ -331,7 +298,7 @@ class ViveDriverNode(Node):
 
         # --- Frame Resolution & TF Broadcasting ---
         world_frame = self.frame_id
-        lh_frame = "lighthouse_origin"
+        lh_frame = LIGHTHOUSE_FRAME
         controller_frame = f"vive_{self.side}_link"
 
         final_pose = pose
@@ -339,16 +306,14 @@ class ViveDriverNode(Node):
 
         lh_pose = self._reference_lighthouse_pose()
         if lh_pose:
-            # --- NEW: Flip the lighthouse frame 180 degrees on the Z (Yaw) axis ---
-            # Note: If it's flipping upside down instead of spinning around,
-            # change axis='z' to axis='x' or axis='y'
-            lh_pose = self._apply_rotation_offset(lh_pose, axis='z', angle_degrees=180)
+            # The origin frame is the base station turned 180 degrees about its z axis (frames.py).
+            origin_pose = origin_from_lighthouse(lh_pose)
 
             current_ref_frame = lh_frame
             # Broadcast World -> Lighthouse
-            self.tf_broadcaster.sendTransform(self._make_tf(lh_pose, world_frame, lh_frame))
+            self.tf_broadcaster.sendTransform(self._make_tf(origin_pose, world_frame, lh_frame))
             # Compute Relative Pose
-            final_pose = self._compute_relative_pose(pose, lh_pose)
+            final_pose = relative_pose(pose, origin_pose)
             # Broadcast Lighthouse -> Controller
             self.tf_broadcaster.sendTransform(self._make_tf(final_pose, lh_frame, controller_frame))
 
