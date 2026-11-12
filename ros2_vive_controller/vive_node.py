@@ -12,7 +12,7 @@ from visualization_msgs.msg import Marker
 from std_srvs.srv import Trigger
 from tf2_ros import TransformBroadcaster
 from OneEuroFilter import OneEuroFilter
-from ros2_vive_controller.openvr_class.openvr_class import triad_openvr
+from ros2_vive_controller.openvr_class.openvr_class import triad_openvr, tracking_ok, tracking_result_name
 from ros2_vive_controller.workspace import OUTSIDE, WARNING, classify
 
 class ViveDriverNode(Node):
@@ -27,6 +27,11 @@ class ViveDriverNode(Node):
                 ('serial', ''),
                 ('reference_lighthouse_serial', ''),
                 ('allow_invalid_lighthouse_pose', False),
+                # Only use poses SteamVR tracks optically (Running_OK). A partly covered controller is
+                # often still flagged valid while SteamVR dead-reckons from the IMU, and those poses jump.
+                ('require_tracking_ok', True),
+                # Consecutive good samples needed before publishing again after tracking was lost.
+                ('tracking_ok_samples', 5),
                 ('frame_id', 'vive_world'),
                 ('linear_scale', 1.0),
                 # Fence written by `make calibrate` (config/workspace.yaml). Off until calibrated.
@@ -93,6 +98,10 @@ class ViveDriverNode(Node):
         self.filters = self._init_filters()
         self.tracking_active = False
         self._haptic_until = 0.0
+        self.require_tracking_ok = self.get_parameter('require_tracking_ok').value
+        self.tracking_ok_samples = max(1, self.get_parameter('tracking_ok_samples').value)
+        self._ok_streak = 0
+        self._lost_at = None
 
         self.create_timer(0.02, self.update)
         # Haptics get their own timer so that buzzing never blocks the pose loop.
@@ -295,20 +304,30 @@ class ViveDriverNode(Node):
             self.connected = True
             self.get_logger().info(f"Connected to {self.side} controller: {self.serial}")
 
-        pose = controller.get_pose_quaternion()
+        poses = self.vr.get_pose()
+        pose = controller.get_pose_quaternion(poses)
+        tracking_result = controller.get_tracking_result(poses)
         inputs = controller.get_controller_inputs()
 
-        # Tracking Check
-        if pose is None:
-            if self.tracking_active:
-                self.get_logger().warn(f"Tracking LOST for {self.side}")
+        # Tracking Check. Degraded tracking (IMU only) counts as lost: those poses drift and jump.
+        if pose is not None and self.require_tracking_ok and not tracking_ok(tracking_result):
+            pose = None
+        self._ok_streak = self._ok_streak + 1 if pose is not None else 0
+        if pose is None or (not self.tracking_active and self._ok_streak < self.tracking_ok_samples):
+            if pose is None and self.tracking_active:
+                self.get_logger().warn(f"Tracking LOST for {self.side} ({tracking_result_name(tracking_result)})")
                 self.tracking_active = False
+                self._lost_at = time.monotonic()
             return
 
         if not self.tracking_active:
-            self.get_logger().info(f"Tracking ACQUIRED for {self.side}! Buzzing...")
             self.tracking_active = True
-            self._buzz(1.0)
+            # Buzz on first acquisition and after real losses, not on every short flicker.
+            if self._lost_at is None or time.monotonic() - self._lost_at > 1.0:
+                self.get_logger().info(f"Tracking ACQUIRED for {self.side}! Buzzing...")
+                self._buzz(1.0)
+            else:
+                self.get_logger().info(f"Tracking back for {self.side}.")
 
         # --- Frame Resolution & TF Broadcasting ---
         world_frame = self.frame_id

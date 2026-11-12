@@ -93,6 +93,21 @@ def matrix_is_initialized(pose_mat):
     return not (pose_mat[0][0] == 0.0 and pose_mat[1][1] == 0.0 and pose_mat[2][2] == 0.0)
 
 
+_TRACKING_RESULT_NAMES = {
+    1: 'Uninitialized', 100: 'Calibrating_InProgress', 101: 'Calibrating_OutOfRange',
+    200: 'Running_OK', 201: 'Running_OutOfRange', 300: 'Fallback_RotationOnly',
+}
+
+
+def tracking_ok(tracking_result):
+    """True if SteamVR tracks the device optically (not dead-reckoning from the IMU)."""
+    return int(tracking_result) == int(openvr.TrackingResult_Running_OK)
+
+
+def tracking_result_name(tracking_result):
+    return _TRACKING_RESULT_NAMES.get(int(tracking_result), str(int(tracking_result)))
+
+
 def _safe(fn, default='unknown'):
     try:
         return fn()
@@ -164,6 +179,12 @@ class vr_tracked_device():
         if not require_valid and matrix_is_initialized(device_pose.mDeviceToAbsoluteTracking):
             return convert_to_quaternion(device_pose.mDeviceToAbsoluteTracking)
         return None
+
+    def get_tracking_result(self, pose=None):
+        """SteamVR's tracking status for this device (an openvr.TrackingResult_* value)."""
+        if pose is None:
+            pose = get_pose(self.vr)
+        return int(pose[self.index].eTrackingResult)
 
     def get_pose_euler(self, pose=None):
         if pose == None:

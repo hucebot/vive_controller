@@ -25,6 +25,11 @@ Prop_DeviceBatteryPercentage_Float = 1012
 Prop_DeviceIsCharging_Bool = 1013
 Prop_ModeLabel_String = 2003
 
+TrackingResult_Uninitialized = 1
+TrackingResult_Running_OK = 200
+TrackingResult_Running_OutOfRange = 201
+TrackingResult_Fallback_RotationOnly = 300
+
 VREvent_TrackedDeviceActivated = 100
 VREvent_TrackedDeviceDeactivated = 101
 
@@ -64,6 +69,7 @@ class _Pose:
     def __init__(self):
         self.bPoseIsValid = False
         self.bDeviceIsConnected = False
+        self.eTrackingResult = TrackingResult_Uninitialized
         self.mDeviceToAbsoluteTracking = [[0.0] * 4 for _ in range(3)]
         self.vVelocity = _Vector()
         self.vAngularVelocity = _Vector()
@@ -89,6 +95,7 @@ class FakeDevice:
         self.model = model
         self.matrix = translation_matrix(*position)
         self.pose_valid = pose_valid
+        self.tracking_result = TrackingResult_Running_OK
         self.connected = True
         self.serial_readable = True
         self.mode_label = 'B'
@@ -148,6 +155,8 @@ class FakeVRSystem:
                 pose.bDeviceIsConnected = device.connected
                 pose.bPoseIsValid = device.connected and device.pose_valid
                 pose.mDeviceToAbsoluteTracking = [list(row) for row in device.matrix]
+                if device.connected:
+                    pose.eTrackingResult = device.tracking_result
             poses.append(pose)
         return poses
 

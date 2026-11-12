@@ -13,6 +13,7 @@ WIDE_WORKSPACE = {
     'workspace.y_min': -100.0, 'workspace.y_max': 100.0,
     'workspace.z_min': -100.0, 'workspace.z_max': 100.0,
     'workspace.padding': 0.0,
+    'tracking_ok_samples': 1,
 }
 
 
@@ -294,3 +295,45 @@ def test_lighthouse_frame_is_kept_when_its_pose_flickers(vr_system, driver):
     last = node.pub_pose.messages[-1].pose.position
     assert (last.x, last.y, last.z) == pytest.approx((first.x, first.y, first.z))
     assert node.log.text('warn').count('keeping its last known pose') == 1
+
+
+def test_degraded_tracking_is_not_published(vr_system, driver):
+    """A partly covered controller: pose still flagged valid, but SteamVR only dead-reckons."""
+    from fake_openvr import TrackingResult_Running_OutOfRange
+    _plug_controllers(vr_system)
+    node = driver(side='right', serial='LHR-RIGHT')
+    node.update()
+    vr_system.slots[2].tracking_result = TrackingResult_Running_OutOfRange
+    node.update()
+    node.update()
+    assert len(node.pub_pose.messages) == 1
+    assert 'Tracking LOST for right (Running_OutOfRange)' in node.log.text('warn')
+
+
+def test_degraded_tracking_can_be_allowed(vr_system, driver):
+    from fake_openvr import TrackingResult_Running_OutOfRange
+    _plug_controllers(vr_system)
+    node = driver(side='right', serial='LHR-RIGHT', require_tracking_ok=False)
+    vr_system.slots[2].tracking_result = TrackingResult_Running_OutOfRange
+    node.update()
+    assert len(node.pub_pose.messages) == 1
+
+
+def test_publishing_resumes_after_several_good_samples_without_rebuzzing(vr_system, driver):
+    from fake_openvr import TrackingResult_Running_OK, TrackingResult_Running_OutOfRange
+    _plug_controllers(vr_system)
+    node = driver(side='right', serial='LHR-RIGHT', tracking_ok_samples=3)
+    for _ in range(3):
+        node.update()
+    assert len(node.pub_pose.messages) == 1            # published from the 3rd good sample
+    buzz_until = node._haptic_until
+    vr_system.slots[2].tracking_result = TrackingResult_Running_OutOfRange
+    node.update()                                       # short flicker
+    vr_system.slots[2].tracking_result = TrackingResult_Running_OK
+    node.update()
+    node.update()
+    assert len(node.pub_pose.messages) == 1            # not yet: only 2 good samples
+    node.update()
+    assert len(node.pub_pose.messages) == 2
+    assert node._haptic_until == buzz_until             # no new 1 s buzz for a short flicker
+    assert 'Tracking back for right' in node.log.text('info')
