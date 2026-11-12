@@ -24,17 +24,23 @@ def _old_clutch_events(triggers):
     return events
 
 
-def test_default_thresholds():
-    clutch = Clutch()
+def test_defaults_are_the_original_clutch():
+    triggers = [0.0, 0.99, 1.0, 1.0, 0.999, 1.0, 0.3, 1.0]
+    assert _events(Clutch(), triggers) == _old_clutch_events(triggers)
+
+
+def test_optional_hysteresis_thresholds():
+    clutch = Clutch(0.95, 0.90)
     assert _events(clutch, [0.5, 0.94, 0.95, 0.92, 0.90, 0.89]) == [None, None, 'engage', None, None, 'release']
 
 
-def test_worn_trigger_that_never_reaches_one_still_engages():
-    assert Clutch().update(0.97) == 'engage'
+def test_worn_trigger_can_engage_with_a_lower_threshold():
+    assert Clutch().update(0.97) is None
+    assert Clutch(0.95, 0.90).update(0.97) == 'engage'
 
 
 def test_hysteresis_stops_flapping_near_full_pull():
-    clutch = Clutch()
+    clutch = Clutch(0.95, 0.90)
     assert _events(clutch, [1.0, 0.97, 1.0, 0.93, 0.99, 1.0]) == ['engage', None, None, None, None, None]
     assert clutch.engaged
 
@@ -45,7 +51,7 @@ def test_thresholds_of_one_reproduce_the_original_behaviour():
 
 
 def test_forced_release_needs_the_trigger_let_go_before_engaging_again():
-    clutch = Clutch()
+    clutch = Clutch(0.95, 0.90)
     clutch.update(1.0)
     clutch.force_release()
     assert not clutch.engaged

@@ -84,14 +84,45 @@ def last_output_x(node):
 def test_clutch_moves_the_target_by_the_hand_displacement(bridge):
     node = bridge()
     send_pose(node, 2.0)
-    send_buttons(node, trigger=0.96)
+    send_buttons(node, trigger=1.0)
     assert node.activated
     send_pose(node, 2.1)
     assert last_output_x(node) == pytest.approx(0.5)
 
 
-def test_hysteresis_keeps_the_clutch_through_small_trigger_dips(bridge):
+def test_default_clutch_releases_as_soon_as_the_trigger_leaves_full_pull(bridge):
+    """The original behaviour: a slight relax is enough to ratchet."""
     node = bridge()
+    send_pose(node, 2.0)
+    send_buttons(node, trigger=1.0)
+    send_pose(node, 2.2)
+    send_buttons(node, trigger=0.97)
+    assert not node.activated
+    send_pose(node, 2.0)               # hand goes back while released: the target stays
+    assert last_output_x(node) == pytest.approx(0.6)
+    add_ee_transform(node, x=0.6)      # the arm reached the command
+    send_buttons(node, trigger=1.0)
+    send_pose(node, 2.2)               # second stroke adds up: ratcheting
+    assert last_output_x(node) == pytest.approx(0.8)
+
+
+def test_each_clutch_restarts_from_the_end_effector_tf(bridge):
+    """Original design, unchanged: the reference is where TF says the end effector is, not the last
+    command. If the arm (or its TF) lags behind the command, each stroke restarts from there, so
+    ratcheting does not add up."""
+    node = bridge()
+    send_pose(node, 2.0)
+    send_buttons(node, trigger=1.0)
+    send_pose(node, 2.2)
+    send_buttons(node, trigger=0.0)
+    send_pose(node, 2.0)
+    send_buttons(node, trigger=1.0)    # TF still says x=0.4: the arm never got to 0.6
+    send_pose(node, 2.2)
+    assert last_output_x(node) == pytest.approx(0.6)
+
+
+def test_optional_hysteresis_keeps_the_clutch_through_small_trigger_dips(bridge):
+    node = bridge(clutch_engage_threshold=0.95, clutch_release_threshold=0.90)
     send_pose(node, 2.0)
     send_buttons(node, trigger=1.0)
     send_buttons(node, trigger=0.93)

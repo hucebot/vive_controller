@@ -23,9 +23,11 @@ class TeleopBridgeNode(Node):
         self.declare_parameter('rotation_offset', [0.0, 0.0, 0.0]) # [R, P, Y] in degrees
         # Bool, or the legacy 'true'/'false' strings.
         self.declare_parameter('trackpad_pressed_required', False, ParameterDescriptor(dynamic_typing=True))
-        # Clutch hysteresis on the trigger. Set both to 1.0 for the original full-pull-only behaviour.
-        self.declare_parameter('clutch_engage_threshold', 0.95)
-        self.declare_parameter('clutch_release_threshold', 0.90)
+        # Clutch on the trigger. The defaults are the original behaviour: engage at a full pull, release
+        # as soon as the trigger leaves it. Optional hysteresis, e.g. 0.95 / 0.90, for worn triggers;
+        # note it then takes a bigger release to ratchet.
+        self.declare_parameter('clutch_engage_threshold', 1.0)
+        self.declare_parameter('clutch_release_threshold', 1.0)
         # Disengage when no pose arrives for this long while engaged (seconds, 0 disables).
         self.declare_parameter('pose_timeout', 0.3)
 

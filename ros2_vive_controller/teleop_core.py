@@ -1,6 +1,6 @@
 """Teleoperation logic of the teleop bridge, kept free of ROS so it can be unit-tested.
 
-- The trigger is a deadman switch (clutch) with hysteresis.
+- The trigger is a deadman switch (clutch), with optional hysteresis.
 - Translation is relative: the end effector moves by the controller's displacement since the
   clutch was engaged.
 - Orientation is absolute by design: the end effector takes the controller's orientation,
@@ -56,11 +56,11 @@ def compute_target(ee_position, joy_reference, joy_position, joy_orientation, ro
 
 
 class Clutch:
-    """Trigger deadman switch with hysteresis.
+    """Trigger deadman switch, with optional hysteresis.
 
     Engages when the trigger reaches engage_threshold and releases when it drops below
-    release_threshold. Setting both thresholds to 1.0 gives the original behaviour (engage only
-    at a full pull, release as soon as the trigger leaves 1.0). After force_release() it stays
+    release_threshold. The defaults (1.0 / 1.0) are the original behaviour: engage only at a full
+    pull, release as soon as the trigger leaves 1.0. After force_release() it stays
     released until the trigger has been let go, so teleop never resumes by itself.
     """
 
@@ -68,7 +68,7 @@ class Clutch:
     ENGAGED = 'engaged'
     LOCKED = 'locked'
 
-    def __init__(self, engage_threshold=0.95, release_threshold=0.90):
+    def __init__(self, engage_threshold=1.0, release_threshold=1.0):
         if release_threshold > engage_threshold:
             raise ValueError('release_threshold must not be above engage_threshold')
         self.engage_threshold = engage_threshold
