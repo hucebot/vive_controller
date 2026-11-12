@@ -202,8 +202,7 @@ class SetupApp:
         origin = self._lighthouse_pose(lighthouse, poses) if lighthouse else None
         frame_ready = not lighthouse or origin is not None
         if self.painting and self.points_frame[self.painting] not in (None, frame):
-            self._set_message(f'The frame changed to {frame}: painting stopped, paint the {self.painting} arm again.',
-                              'warn', now)
+            self._set_message(f'Frame changed to {frame}: painting stopped.', 'warn', now)
             self.points[self.painting] = []
             self.points_version += 1
             self.painting = None
@@ -352,8 +351,8 @@ class SetupApp:
 
     def _no_trigger_actions(self):
         if self.teleop_running:
-            raise CommandError(f'Teleop is running in {self.teleop_running}: pulling a trigger would move the '
-                               f'robot. Stop it first (make stop), or use the drop-down lists.')
+            raise CommandError(f'Teleop running in {self.teleop_running}: a trigger pull would move the robot. '
+                               f'Stop it first (make stop) or use the lists.')
 
     def _cmd_buzz(self, now, serial, seconds=1.5):
         if self._controller(serial) is None:
@@ -370,7 +369,7 @@ class SetupApp:
         self.painting = None
         self.assigning = side
         self._armed = set()
-        return f'Pull the trigger of the controller in your {side.upper()} hand.'
+        return f'Pull the trigger in your {side.upper()} hand.'
 
     def _cmd_cancel(self, now):
         self.assigning = None
@@ -413,20 +412,18 @@ class SetupApp:
             raise CommandError(f'Assign a connected controller to the {side} hand first.')
         frame, lighthouse = self.target_frame()
         if lighthouse and lighthouse not in self._lighthouse_poses:
-            raise CommandError(f'The position of base station {lighthouse} is not known yet: hold a controller '
-                               f'up towards it, or choose another origin.')
+            raise CommandError(f'Base station {lighthouse}: position not known yet (point a controller at it).')
         self.assigning = None
         self.painting = side
         self.points[side] = []
         self.points_frame[side] = frame
         self.points_version += 1
-        return (f'Painting the {side} arm: hold the {side.upper()} trigger and sweep the space the hand '
-                f'should reach, then press Done.')
+        return f'Painting {side} arm: hold the {side.upper()} trigger and sweep, then Done.'
 
     def _fence_from_points(self, side):
         bounds = bounds_from_points(self.points[side], margin=self.margin)
         if bounds is None:
-            raise CommandError('All points were filtered out as outliers: paint again, more evenly.')
+            raise CommandError('All points rejected as outliers. Paint again.')
         self.draft = st.set_fence(self.draft, side, bounds, self.points_frame[side])
 
     def _cmd_paint_stop(self, now):
@@ -435,10 +432,9 @@ class SetupApp:
             return ''
         count = len(self.points[side])
         if count < MIN_POINTS:
-            raise CommandError(f'Only {count} points: hold the trigger while you sweep the space (at least '
-                               f'{MIN_POINTS} points, 2 cm apart).')
+            raise CommandError(f'Only {count} points (need {MIN_POINTS}, 2 cm apart): hold the trigger while sweeping.')
         self._fence_from_points(side)
-        return f'{side.capitalize()} arm fence painted from {count} points. Save to keep it.'
+        return f'{side.capitalize()} fence: {count} points. Save to keep it.'
 
     def _cmd_paint_clear(self, now, side):
         if side not in SIDES:
@@ -448,7 +444,7 @@ class SetupApp:
         self.points[side] = []
         self.points_version += 1
         self.draft['workspace'].pop(side, None)
-        return f'{side.capitalize()} arm fence removed.'
+        return f'{side.capitalize()} fence removed.'
 
     def _cmd_set_margin(self, now, margin):
         margin = float(margin)
@@ -463,7 +459,7 @@ class SetupApp:
     def _cmd_set_fence_enabled(self, now, side, enabled):
         fence = self.draft['workspace'].get(side)
         if fence is None or not all(key in fence for key in st.BOUND_KEYS):
-            raise CommandError(f'The {side} arm has no fence yet: paint one first.')
+            raise CommandError(f'No {side} fence yet.')
         fence['enabled'] = bool(enabled)
         return ''
 
@@ -482,7 +478,7 @@ class SetupApp:
         self.draft = self._draft_from(self.saved)
         self.painting = None
         self.assigning = None
-        return 'Back to the saved setup.'
+        return f'Reverted to config/{st.FILE_NAME}.'
 
     # --- snapshots for the web page ---------------------------------------------------------
 
@@ -499,36 +495,35 @@ class SetupApp:
         connected = {d['serial'] for d in devices}
         profile = self.profile()
         if self.teleop_running:
-            warnings.append(f'Teleop is running in {self.teleop_running}: assigning by trigger and painting are '
-                            f'off, because a trigger pull would move the robot.')
+            warnings.append(f'Teleop running in {self.teleop_running}: trigger assign and painting are disabled '
+                            f'(a pull would move the robot).')
         if not profile:
-            warnings.append('Choose the robot this machine drives.')
+            warnings.append('No robot selected.')
         sides = list(profile['arms']) if profile else [s for s in SIDES if self.draft['devices'][s]]
         for side in sides:
             serial = self.draft['devices'][side]
             if not serial:
                 warnings.append(f'No controller for the {side} hand.')
             elif serial not in connected:
-                warnings.append(f'The {side} controller ({serial}) is not connected.')
+                warnings.append(f'{side.capitalize()} controller {serial} not connected.')
         if profile and profile['use_origin_lighthouse'] and not lighthouse:
-            warnings.append(f"The {profile['name']} profile uses an origin base station; without one, the arm "
-                            f"moves along SteamVR's world axes.")
+            warnings.append(f"{profile['name']} expects an origin base station; without one, poses are in "
+                            f"{WORLD_FRAME}.")
         if lighthouse and not frame_ready:
-            warnings.append(f'Base station {lighthouse}: position not known yet. SteamVR lists a base station '
-                            f'once a controller has seen it.')
+            warnings.append(f'Base station {lighthouse}: position not known yet (point a controller at it).')
         for side in sides:
             fence = self.draft['workspace'].get(side)
             if fence and fence['enabled']:
                 if fence['frame_id'] != frame:
-                    warnings.append(f"The {side} fence was painted in '{fence['frame_id']}' but the robot runs in "
-                                    f"'{frame}', so the driver will ignore it: paint it again.")
+                    warnings.append(f"{side.capitalize()} fence is in '{fence['frame_id']}', the robot runs in "
+                                    f"'{frame}': the driver ignores it. Repaint.")
                 thin = [a for a in AXES if fence[f'{a}_max'] - fence[f'{a}_min'] < 2 * self.padding]
                 if thin:
-                    warnings.append(f"The {side} fence is less than twice the warning band ({self.padding} m) "
-                                    f"along {', '.join(thin)}: it will vibrate everywhere along that axis.")
+                    warnings.append(f"{side.capitalize()} fence is under 2 x the warning band ({self.padding} m) "
+                                    f"along {', '.join(thin)}: it vibrates everywhere.")
             elif fence is None and self.legacy_fence and self.legacy_fence['enabled']:
-                warnings.append(f"No {side} fence here: the old config/workspace.yaml fence (frame "
-                                f"'{self.legacy_fence['frame_id']}') applies to it.")
+                warnings.append(f"{side.capitalize()} arm: the old config/workspace.yaml fence applies "
+                                f"(frame '{self.legacy_fence['frame_id']}').")
         return warnings
 
     def _publish(self, devices, frame, lighthouse, frame_ready):

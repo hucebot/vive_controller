@@ -16,8 +16,10 @@ def install():
     sys.modules['openvr'] = fake_openvr
     openvr_class.openvr = fake_openvr       # already imported with the real module
     system = fake_openvr.reset()
-    origin = fake_openvr.FakeDevice(fake_openvr.LIGHTHOUSE, 'LHB-DEMO-B', position=(0.0, 2.2, -1.5))
-    other = fake_openvr.FakeDevice(fake_openvr.LIGHTHOUSE, 'LHB-DEMO-C', position=(2.5, 2.2, 1.5))
+    origin = fake_openvr.FakeDevice(fake_openvr.LIGHTHOUSE, 'LHB-DEMO-B', model='Valve SR Imp',
+                                    position=(0.0, 2.2, -1.5))
+    other = fake_openvr.FakeDevice(fake_openvr.LIGHTHOUSE, 'LHB-DEMO-C', model='Valve SR Imp',
+                                   position=(2.5, 2.2, 1.5))
     other.mode_label = 'C'
     right = fake_openvr.FakeDevice(fake_openvr.CONTROLLER, RIGHT, model='VIVE Controller Pro MV')
     left = fake_openvr.FakeDevice(fake_openvr.CONTROLLER, LEFT, model='VIVE Controller Pro MV')
@@ -40,7 +42,7 @@ class Demo:
         t = now - self.start
         for device, centre, phase in ((self.right, (0.3, 1.0, 0.0), 0.0), (self.left, (-0.3, 1.0, 0.0), 4.0)):
             s = t + phase
-            device.move_to(centre[0] + 0.3 * math.sin(0.9 * s),
+            device.move_to(centre[0] + 0.4 * math.sin(0.9 * s),
                            centre[1] + 0.3 * math.sin(1.7 * s),
                            centre[2] + 0.35 * math.sin(1.1 * s + 1.0))
             # Trigger held for 3 s every 8 s, each controller in turn.

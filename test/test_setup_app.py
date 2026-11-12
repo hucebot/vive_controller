@@ -61,7 +61,7 @@ def test_first_start_is_prefilled_from_env(rig):
     state = rig.app.state()
     assert state['draft']['devices'] == {'right': 'LHR-A', 'left': '', 'origin_lighthouse': 'LHB-O'}
     assert state['dirty'] and not state['station_exists']
-    assert 'Choose the robot this machine drives.' in state['warnings']
+    assert 'No robot selected.' in state['warnings']
     roles = {d['serial']: d['role'] for d in state['devices']}
     assert roles == {'LHR-A': 'right', 'LHR-B': '', 'LHB-O': 'origin_lighthouse'}
     assert sorted(state['robots']) == ['franka', 'g1', 'tiago', 'tiago_pro']
@@ -190,7 +190,7 @@ def test_painting_waits_for_the_origin_base_station(vr_system, config):
     rig = Rig(vr_system, config)
     rig.lighthouse.pose_valid = False
     rig.step()
-    with pytest.raises(CommandError, match='position of base station LHB-O is not known yet'):
+    with pytest.raises(CommandError, match='LHB-O: position not known yet'):
         rig.do('paint_start', side='right')
     assert any('LHB-O: position not known yet' in w for w in rig.app.state()['warnings'])
 
@@ -199,7 +199,7 @@ def test_trigger_actions_are_off_while_teleop_runs(vr_system, config):
     rig = Rig(vr_system, config, attached_to='ros2_vive_franka')
     rig.step()
     for command, kwargs in (('assign', {'side': 'left'}), ('paint_start', {'side': 'right'})):
-        with pytest.raises(CommandError, match='Teleop is running in ros2_vive_franka'):
+        with pytest.raises(CommandError, match='Teleop running in ros2_vive_franka'):
             rig.do(command, **kwargs)
     rig.do('set_device', role='left', serial='LHR-B')             # drop-downs still work
     assert rig.app.draft['devices']['left'] == 'LHR-B'
@@ -231,8 +231,8 @@ def test_warnings_for_a_fence_in_the_wrong_frame_and_a_thin_fence(rig):
                                                           'z_min': 0, 'z_max': 1}, 'vive_world')
     rig.step()
     warnings = ' '.join(rig.app.state()['warnings'])
-    assert "painted in 'vive_world' but the robot runs in 'lighthouse_origin'" in warnings
-    assert 'less than twice the warning band (0.15 m) along x' in warnings
+    assert "Right fence is in 'vive_world', the robot runs in 'lighthouse_origin'" in warnings
+    assert 'under 2 x the warning band (0.15 m) along x' in warnings
 
 
 def test_old_workspace_file_is_mentioned(vr_system, config):
@@ -301,3 +301,7 @@ def test_http_api(served):
     assert status == 200 and set(points['points']) == {'left', 'right'}
     status, reply = _request(f'{base}/api/nothing-here')
     assert status == 404
+    with urllib.request.urlopen(f'{base}/', timeout=5) as response:
+        page = response.read().decode()
+    assert response.headers['Content-Type'].startswith('text/html')
+    assert 'VIVE SETUP' in page and "fetch('/api/state'" in page

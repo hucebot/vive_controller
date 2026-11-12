@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vive Setup</title>
+<style>
+  :root {
+    --bg: #ecebe7; --panel: #f9f9f7; --fg: #1a1a1a; --muted: #6e6c66; --line: #d3d1ca; --soft: #e4e2dc;
+    --accent: #d9480f; --accent-fg: #ffffff; --ok: #2b8a3e; --warn: #c77700; --bad: #c92a2a;
+    --right: #1c6fd1; --left: #a33ac2;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121212; --panel: #1b1b1b; --fg: #e7e5e1; --muted: #8f8c86; --line: #333230; --soft: #262624;
+      --accent: #ff7b39; --accent-fg: #121212; --ok: #5bc46e; --warn: #f2b43a; --bad: #ff6b6b;
+      --right: #5ea2f2; --left: #cf7ae8;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Ubuntu, sans-serif; }
+  .mono, code, td.num { font-family: ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace; font-size: 13px; }
+  .muted { color: var(--muted); }
+  button, select, input { font: inherit; color: inherit; }
+  button { border: 1px solid var(--line); background: var(--panel); border-radius: 3px; padding: 4px 10px; cursor: pointer; white-space: nowrap; }
+  button:hover:not(:disabled) { border-color: var(--fg); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+  button.on { background: var(--fg); border-color: var(--fg); color: var(--panel); }
+  select { border: 1px solid var(--line); background: var(--panel); border-radius: 3px; padding: 4px 6px; min-width: 0; max-width: 100%; }
+  select:disabled { opacity: .5; }
+
+  header { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+           justify-content: space-between; padding: 8px 16px; background: #1a1a1a; color: #ecebe7; border-bottom: 1px solid #333; }
+  header .title { font: 600 13px ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; }
+  header .right { display: flex; align-items: center; gap: 8px; }
+  header button { background: transparent; border-color: #555; color: #ecebe7; }
+  header button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  #conn { font-size: 12px; }
+
+  main { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 16px; padding: 16px;
+         max-width: 1320px; margin: 0 auto; align-items: start; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .col { display: grid; gap: 16px; min-width: 0; }
+  .full { grid-column: 1 / -1; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 3px; min-width: 0; }
+  h2 { margin: 0; padding: 7px 12px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--line);
+       display: flex; align-items: baseline; gap: 8px; }
+  h2 .n { font: 12px ui-monospace, Menlo, monospace; color: var(--muted); }
+  h2 .aside { margin-left: auto; font-weight: 400; color: var(--muted); }
+  .body { padding: 10px 12px; }
+  .body > * + * { margin-top: 8px; }
+  .note { font-size: 13px; color: var(--muted); margin: 0; }
+
+  .dot { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; white-space: nowrap; }
+  .dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { color: var(--ok); } .dot.ok::before { background: var(--ok); }
+  .dot.warn { color: var(--warn); } .dot.warn::before { background: var(--warn); }
+  .dot.bad { color: var(--bad); } .dot.bad::before { background: var(--bad); }
+  .tag { font: 600 11px ui-monospace, Menlo, monospace; text-transform: uppercase; letter-spacing: .04em; }
+  .tag.right { color: var(--right); } .tag.left { color: var(--left); } .tag.origin_lighthouse { color: var(--accent); }
+
+  #warnings { list-style: none; margin: 0; padding: 0; }
+  #warnings:empty { display: none; }
+  #warnings li { border-left: 3px solid var(--warn); background: var(--panel); padding: 6px 10px; margin-bottom: 4px; font-size: 13px; }
+
+  .arm { border-top: 1px dashed var(--line); padding-top: 6px; overflow-wrap: anywhere; font-size: 13px; }
+
+  .hand { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 6px 8px; align-items: center;
+          padding: 6px 0; border-top: 1px dashed var(--line); }
+  .hand:first-child { border-top: 0; padding-top: 0; }
+  .hand .who { font-weight: 600; }
+  .hand .acts { display: flex; gap: 6px; }
+  .hand .state { grid-column: 2 / -1; }
+  .hand .hint { grid-column: 1 / -1; margin: 0; padding: 5px 8px; background: var(--accent); color: var(--accent-fg); font-weight: 600; font-size: 13px; }
+  .hand.waiting .who { color: var(--accent); }
+
+  .table-wrap { overflow-x: auto; }
+  table.devices { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.devices th { text-align: left; font-weight: 500; color: var(--muted); padding: 6px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  table.devices td { padding: 5px 12px; border-bottom: 1px solid var(--soft); white-space: nowrap; vertical-align: middle; }
+  table.devices tr:last-child td { border-bottom: 0; }
+  table.devices tr.pulled td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .meter { display: inline-block; width: 64px; height: 6px; background: var(--soft); vertical-align: middle; margin-right: 6px; }
+  .meter i { display: block; height: 100%; width: 0; background: var(--fg); }
+  .meter.low i { background: var(--bad); }
+  .meter.trig i { background: var(--accent); transition: width .08s; }
+
+  .tabs { display: flex; gap: 0; }
+  .tabs button { border-radius: 0; margin-left: -1px; }
+  .tabs button:first-child { border-radius: 3px 0 0 3px; margin-left: 0; }
+  .tabs button:last-child { border-radius: 0 3px 3px 0; }
+  .ws { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 12px; }
+  @media (max-width: 1100px) { .ws { grid-template-columns: 1fr; } }
+  .canvas-box { position: relative; border: 1px solid var(--line); }
+  canvas { width: 100%; height: 400px; display: block; background: var(--bg); touch-action: none; cursor: grab; }
+  canvas:active { cursor: grabbing; }
+  .view-help { position: absolute; right: 8px; top: 6px; font-size: 11px; color: var(--muted); pointer-events: none; }
+  .legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .legend i { display: inline-block; width: 12px; height: 3px; margin-right: 4px; vertical-align: 3px; }
+  table.bounds { border-collapse: collapse; font-size: 13px; }
+  table.bounds th { color: var(--muted); font-weight: 500; text-align: right; padding: 1px 0 1px 12px; }
+  table.bounds th:first-child { padding-left: 0; }
+  table.bounds td { text-align: right; padding: 1px 0 1px 12px; }
+  .slider { display: grid; grid-template-columns: auto 1fr 4.5em; gap: 8px; align-items: center; font-size: 13px; white-space: nowrap; }
+  .slider input { accent-color: var(--accent); }
+  .switch { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+  .switch input { accent-color: var(--accent); }
+  .painting { padding: 6px 8px; background: var(--accent); color: var(--accent-fg); font-weight: 600; font-size: 13px; }
+
+  #toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 10; max-width: min(620px, 92vw);
+           padding: 8px 14px; border-radius: 3px; background: var(--fg); color: var(--panel); font-size: 13px;
+           opacity: 0; pointer-events: none; transition: opacity .15s; }
+  #toast.show { opacity: 1; }
+  #toast.error { background: var(--bad); color: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <div><span class="title">VIVE SETUP</span> &nbsp;<span id="conn" class="dot">connecting</span></div>
+  <div class="right">
+    <span id="dirty" style="font-size:13px"></span>
+    <button id="revert" title="Back to config/station.yaml">Revert</button>
+    <button id="save" class="primary" title="Write config/station.yaml">Save</button>
+  </div>
+</header>
+
+<main>
+  <ul id="warnings" class="full"></ul>
+
+  <div class="col">
+    <section>
+      <h2><span class="n">1</span>Robot</h2>
+      <div class="body">
+        <select id="robot" aria-label="Robot" style="width:100%"></select>
+        <p id="robot-desc" class="note"></p>
+        <div id="robot-arms"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="n">2</span>Hands</h2>
+      <div class="body" id="hands"></div>
+    </section>
+
+    <section>
+      <h2><span class="n">3</span>Origin</h2>
+      <div class="body">
+        <select id="origin" aria-label="Origin base station" style="width:100%"></select>
+        <p id="frame-note" class="note"></p>
+      </div>
+    </section>
+  </div>
+
+  <section>
+    <h2><span class="n">4</span>Workspace fence<span class="aside mono" id="frame-id"></span></h2>
+    <div class="body">
+      <div class="tabs" id="arm-tabs"></div>
+      <div class="ws">
+        <div>
+          <div class="canvas-box">
+            <canvas id="view" aria-label="3D view of the workspace fence"></canvas>
+            <span class="view-help">drag: rotate · wheel: zoom · double-click: reset</span>
+          </div>
+          <div class="legend">
+            <span><i style="background:var(--accent)"></i>points</span>
+            <span><i style="background:var(--fg)"></i>fence</span>
+            <span><i style="background:var(--warn)"></i>warning band</span>
+            <span><i style="background:var(--ok)"></i>inside</span>
+            <span><i style="background:var(--bad)"></i>outside</span>
+          </div>
+        </div>
+        <div class="body" style="padding:0">
+          <div id="ws-status"></div>
+          <div id="ws-bounds"></div>
+          <div style="display:flex; flex-wrap:wrap; gap:6px">
+            <button id="paint" class="primary">Paint</button>
+            <button id="done" class="primary">Done</button>
+            <button id="cancel">Cancel</button>
+            <button id="clear">Remove</button>
+          </div>
+          <label class="switch"><input type="checkbox" id="fence-on"> fence on</label>
+          <div class="slider">
+            <span>margin</span>
+            <input type="range" id="margin" min="0" max="0.3" step="0.01">
+            <span id="margin-val" class="mono"></span>
+          </div>
+          <p class="note">Box = painted points + margin. Vibrates within <span id="pad" class="mono"></span> m of a face;
+            the arm stops outside.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="full">
+    <h2>Devices<span class="aside" id="device-count"></span></h2>
+    <div class="table-wrap">
+      <table class="devices">
+        <thead><tr><th>Serial</th><th>Type</th><th>Role</th><th>Battery</th><th>Trigger</th><th>Tracking</th><th>Fence</th><th></th></tr></thead>
+        <tbody id="devices"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+const $ = (sel, root = document) => root.querySelector(sel);
+const SIDES = ['right', 'left'];
+const ROLE = { right: 'right', left: 'left', origin_lighthouse: 'origin' };
+const FENCE_CLASS = { inside: 'ok', warning: 'warn', outside: 'bad' };
+let S = null;                                  // last state from the app
+let points = { right: [], left: [] }, pointsVersion = -1;
+let armTab = 'right';
+let lastMessage = '';
+let online = null;
+
+function esc(text) {
+  return String(text ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function setHTML(el, html) { if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; } }
+
+// --- talking to the app ------------------------------------------------------------------------
+async function api(path, body) {
+  try {
+    const response = await fetch('/api/' + path, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    const reply = await response.json();
+    if (!reply.ok) toast(reply.message, true);
+    else if (reply.message) toast(reply.message);
+    poll();
+    return reply.ok;
+  } catch (error) {
+    toast('No answer from the setup app. Is make setup still running?', true);
+    return false;
+  }
+}
+
+let polling = false;
+async function poll() {
+  if (polling) return;
+  polling = true;
+  try {
+    S = await (await fetch('/api/state', { cache: 'no-store' })).json();
+    setOnline(true);
+    if (S.points_version !== undefined && S.points_version !== pointsVersion) {
+      const reply = await (await fetch('/api/points', { cache: 'no-store' })).json();
+      points = reply.points; pointsVersion = reply.version;
+    }
+    render();
+  } catch (error) {
+    setOnline(false);
+  } finally {
+    polling = false;
+  }
+}
+
+function setOnline(value) {
+  if (value === online) return;
+  online = value;
+  $('#conn').textContent = value ? 'live' : 'offline';
+  $('#conn').className = 'dot ' + (value ? 'ok' : 'bad');
+}
+
+let toastTimer = null;
+function toast(text, error = false) {
+  if (!text) return;
+  const el = $('#toast');
+  el.textContent = text;
+  el.className = 'show' + (error ? ' error' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, error ? 6000 : 3500);
+}
+
+// --- helpers ------------------------------------------------------------------------------------
+function setOptions(select, options, value) {
+  // Rebuild only when the options change, and never while the list is open.
+  const key = JSON.stringify(options);
+  if (select.dataset.key !== key) {
+    select.innerHTML = options.map(([v, label]) => `<option value="${esc(v)}">${esc(label)}</option>`).join('');
+    select.dataset.key = key;
+  }
+  if (document.activeElement !== select) select.value = value;
+}
+function device(serial) { return serial ? S.devices.find(d => d.serial === serial) : undefined; }
+function profile() { const p = S.robots[S.draft.robot]; return p && !p.error ? p : null; }
+function arms() { const p = profile(); return p ? SIDES.filter(s => s in p.arms) : SIDES; }
+function fmt(v) { return (v >= 0 ? '+' : '') + v.toFixed(3); }
+function dot(cls, text) { return `<span class="dot ${cls}">${esc(text)}</span>`; }
+
+// --- render -------------------------------------------------------------------------------------
+function render() {
+  if (!S) return;
+  renderHeader();
+  renderRobot();
+  renderHands();
+  renderOrigin();
+  renderDevices();
+  renderWorkspace();
+  drawView();
+  const m = S.message;
+  if (m && m.time + m.text !== lastMessage) {
+    if (lastMessage) toast(m.text, m.level === 'error');
+    lastMessage = m.time + m.text;
+  }
+}
+
+function renderHeader() {
+  $('#dirty').textContent = S.dirty ? (S.station_exists ? 'unsaved changes' : 'not saved yet') : 'saved';
+  $('#save').disabled = !S.dirty;
+  $('#revert').disabled = !S.dirty || !S.station_exists;
+  setHTML($('#warnings'), S.warnings.map(w => `<li>${esc(w)}</li>`).join(''));
+}
+
+function renderRobot() {
+  const names = Object.keys(S.robots).sort();
+  setOptions($('#robot'), [['', 'choose…'], ...names.map(n => [n, S.robots[n].error ? `${n} (invalid profile)` : n])], S.draft.robot);
+  const p = profile();
+  $('#robot-desc').textContent = p ? `${p.description}. Scale ${p.linear_scale}.` : 'Profiles: config/robots/';
+  setHTML($('#robot-arms'), p ? SIDES.filter(s => s in p.arms).map(side => {
+    const arm = p.arms[side];
+    return `<div class="arm"><span class="tag ${side}">${side}</span> <span class="mono">${esc(arm.output_topic)}</span><br>
+            <span class="mono muted">${esc(arm.reference_frame)} → ${esc(arm.target_frame)}</span></div>`;
+  }).join('') : '');
+}
+
+function buildHands() {
+  $('#hands').innerHTML = SIDES.map(side => `
+    <div class="hand" data-side="${side}">
+      <span class="who tag ${side}">${side}</span>
+      <select data-select aria-label="${side} controller"></select>
+      <span class="acts"><button data-assign title="Pull the trigger of the controller in this hand">Assign</button><button data-buzz>Buzz</button></span>
+      <span class="state" data-status></span>
+      <p class="hint" data-hint hidden>Pull the trigger in your ${side.toUpperCase()} hand</p>
+    </div>`).join('');
+  for (const row of document.querySelectorAll('.hand')) {
+    const side = row.dataset.side;
+    $('[data-assign]', row).onclick = () => api(S.assigning === side ? 'cancel' : 'assign', S.assigning === side ? {} : { side });
+    $('[data-select]', row).onchange = e => api('set/device', { role: side, serial: e.target.value });
+    $('[data-buzz]', row).onclick = () => api('buzz', { serial: S.draft.devices[side] });
+  }
+}
+
+function renderHands() {
+  if (!$('.hand')) buildHands();
+  const controllers = S.devices.filter(d => d.class === 'Controller');
+  for (const row of document.querySelectorAll('.hand')) {
+    const side = row.dataset.side;
+    const serial = S.draft.devices[side];
+    const d = device(serial);
+    const needed = arms().includes(side);
+    row.style.opacity = needed ? 1 : 0.5;
+    let status;
+    if (!serial) status = needed ? dot('warn', 'no controller') : dot('', 'not used by this robot');
+    else if (!d) status = dot('bad', 'not connected');
+    else if (d.tracked) status = dot('ok', 'tracked');
+    else status = dot('warn', `not tracked (${d.tracking})`);
+    setHTML($('[data-status]', row), status);
+    const waiting = S.assigning === side;
+    row.classList.toggle('waiting', waiting);
+    $('[data-hint]', row).hidden = !waiting;
+    const assign = $('[data-assign]', row);
+    assign.textContent = waiting ? 'Cancel' : 'Assign';
+    assign.classList.toggle('on', waiting);
+    assign.disabled = !!S.teleop_running || (!controllers.length && !waiting);
+    const options = [['', '—'], ...controllers.map(c => [c.serial, c.serial])];
+    if (serial && !d) options.push([serial, `${serial} (off)`]);
+    setOptions($('[data-select]', row), options, serial);
+    $('[data-buzz]', row).disabled = !d;
+  }
+}
+
+function renderOrigin() {
+  const stations = S.devices.filter(d => d.class === 'Tracking Reference');
+  const current = S.draft.devices.origin_lighthouse;
+  const options = [['', 'none (vive_world)'],
+    ...stations.map(b => [b.serial, `${b.serial}${b.mode ? '  ch ' + b.mode : ''}${b.pose_known ? '' : '  (position unknown)'}`])];
+  if (current && !stations.some(b => b.serial === current)) options.push([current, `${current} (not seen yet)`]);
+  setOptions($('#origin'), options, current);
+  $('#origin').disabled = !S.frame.uses_origin;
+  let note;
+  if (!S.frame.uses_origin) note = 'Not used by this robot: poses stay in vive_world.';
+  else if (S.frame.lighthouse) note = S.frame.ready ? `Poses in lighthouse_origin (${S.frame.lighthouse}).`
+                                                    : `${S.frame.lighthouse}: position unknown. Point a controller at it.`;
+  else note = 'Poses in vive_world (SteamVR world frame).';
+  if (!stations.length) note += ' Base stations appear once a controller has seen them.';
+  $('#frame-note').textContent = note;
+}
+
+function buildRow(d) {
+  const tr = document.createElement('tr');
+  tr.dataset.serial = d.serial;
+  const tracked = d.class !== 'Tracking Reference';
+  tr.innerHTML = `
+    <td class="mono"><b>${esc(d.serial)}</b></td>
+    <td class="muted">${esc(d.class === 'Tracking Reference' ? 'base station' : d.class.toLowerCase())}${d.model ? ' · ' + esc(d.model) : ''}</td>
+    <td data-role></td>
+    <td>${tracked ? '<span class="meter" data-bbar><i></i></span><span class="mono" data-bval></span>' : ''}</td>
+    <td>${d.class === 'Controller' ? '<span class="meter trig"><i data-tbar></i></span><span class="mono" data-tval></span>' : ''}</td>
+    <td data-track></td>
+    <td data-fence></td>
+    <td>${d.class === 'Controller' ? '<button data-buzz>Buzz</button>' : ''}</td>`;
+  const buzz = $('[data-buzz]', tr);
+  if (buzz) buzz.onclick = () => api('buzz', { serial: d.serial });
+  return tr;
+}
+
+function renderDevices() {
+  const body = $('#devices');
+  const order = { Controller: 0, Tracker: 1, 'Tracking Reference': 2 };
+  const devices = [...S.devices].sort((a, b) => (order[a.class] ?? 3) - (order[b.class] ?? 3) || a.serial.localeCompare(b.serial));
+  const seen = new Set();
+  for (const d of devices) {
+    seen.add(d.serial);
+    const tr = body.querySelector(`tr[data-serial="${CSS.escape(d.serial)}"]`) || buildRow(d);
+    body.appendChild(tr);                      // keeps the sorted order
+    setHTML($('[data-role]', tr), d.role ? `<span class="tag ${d.role}">${ROLE[d.role]}</span>` : '<span class="muted">—</span>');
+    tr.classList.toggle('pulled', d.class === 'Controller' && d.trigger > 0.5);
+    const bbar = $('[data-bbar]', tr);
+    if (bbar) {
+      const b = d.battery;
+      bbar.firstElementChild.style.width = (b ?? 0) + '%';
+      bbar.classList.toggle('low', b !== null && b < 20);
+      $('[data-bval]', tr).textContent = b === null ? '—' : `${b}%${d.charging ? ' +' : ''}`;
+    }
+    const tbar = $('[data-tbar]', tr);
+    if (tbar) { tbar.style.width = Math.round(d.trigger * 100) + '%'; $('[data-tval]', tr).textContent = d.trigger.toFixed(2); }
+    let track;
+    if (d.class === 'Tracking Reference') track = d.pose_known ? dot('ok', `ch ${d.mode || '?'} · position known`) : dot('warn', `ch ${d.mode || '?'} · position unknown`);
+    else track = d.tracked ? dot('ok', 'tracked') : dot('warn', d.tracking);
+    setHTML($('[data-track]', tr), track);
+    setHTML($('[data-fence]', tr), d.fence ? dot(FENCE_CLASS[d.fence], d.fence) : '<span class="muted">—</span>');
+  }
+  for (const tr of [...body.children]) if (!seen.has(tr.dataset.serial)) tr.remove();
+  if (!devices.length) body.innerHTML = '<tr><td colspan="8" class="muted">No device. Switch the controllers on and check the base stations are powered.</td></tr>';
+  $('#device-count').textContent = devices.length ? `${devices.length} connected` : '';
+}
+
+function renderWorkspace() {
+  const sides = arms();
+  if (!sides.includes(armTab)) armTab = sides[0];
+  const tabs = $('#arm-tabs');
+  const key = sides.join(',') + '|' + armTab;
+  if (tabs.dataset.key !== key) {
+    tabs.innerHTML = sides.map(s => `<button data-tab="${s}" class="${s === armTab ? 'on' : ''}">${s} arm</button>`).join('');
+    tabs.dataset.key = key;
+    for (const b of tabs.querySelectorAll('button')) b.onclick = () => { armTab = b.dataset.tab; render(); };
+  }
+  $('#frame-id').textContent = S.frame.id;
+  const side = armTab;
+  const fence = S.draft.workspace[side];
+  const painting = S.painting === side;
+  const count = S.points_count[side];
+  const d = device(S.draft.devices[side]);
+  let status;
+  if (painting) status = `<div class="painting">Hold the ${side.toUpperCase()} trigger and sweep. ${count} pts</div>`;
+  else if (fence) {
+    const frameOk = fence.frame_id === S.frame.id;
+    status = (fence.enabled ? dot(frameOk ? 'ok' : 'bad', frameOk ? 'on' : `on, but in ${fence.frame_id}`) : dot('', 'off')) +
+             ` <span class="muted mono">${esc(fence.frame_id)}</span>`;
+  } else if (S.legacy_fence && S.legacy_fence.enabled) {
+    status = dot('warn', 'old workspace.yaml applies') + ` <span class="muted mono">${esc(S.legacy_fence.frame_id)}</span>`;
+  } else status = dot('', 'no fence');
+  if (d && d.fence) status += `<div style="margin-top:4px">controller: ${dot(FENCE_CLASS[d.fence], d.fence)}</div>`;
+  setHTML($('#ws-status'), status);
+
+  let bounds = '';
+  if (fence && fence.x_min !== undefined) {
+    bounds = '<table class="bounds"><tr><th></th><th>min</th><th>max</th><th>size</th></tr>' +
+      ['x', 'y', 'z'].map(a => `<tr><th>${a}</th><td class="num">${fmt(fence[a + '_min'])}</td><td class="num">${fmt(fence[a + '_max'])}</td>
+        <td class="num">${(fence[a + '_max'] - fence[a + '_min']).toFixed(2)}</td></tr>`).join('') + '</table>';
+  }
+  setHTML($('#ws-bounds'), bounds);
+
+  $('#paint').hidden = painting;
+  $('#done').hidden = !painting;
+  $('#cancel').hidden = !painting;
+  $('#paint').disabled = !!S.teleop_running || !d || !S.frame.ready;
+  $('#paint').title = S.teleop_running ? 'Teleop is running: stop it first' : !d ? `No ${side} controller` : '';
+  $('#clear').disabled = !fence && !count;
+  const on = $('#fence-on');
+  on.disabled = !fence || fence.x_min === undefined;
+  on.checked = !!(fence && fence.enabled);
+  const margin = $('#margin');
+  if (document.activeElement !== margin) margin.value = S.margin;
+  $('#margin-val').textContent = (+margin.value).toFixed(2) + ' m';
+  $('#pad').textContent = S.padding;
+}
+
+// --- 3D view ------------------------------------------------------------------------------------
+const view = { yaw: -0.7, pitch: 0.45, zoom: 1, center: null, scale: null };
+const canvas = $('#view');
+const ctx = canvas.getContext('2d');
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function corners(b, inset = 0) {
+  const out = [];
+  for (const x of [b.x_min + inset, b.x_max - inset])
+    for (const y of [b.y_min + inset, b.y_max - inset])
+      for (const z of [b.z_min + inset, b.z_max - inset]) out.push([x, y, z]);
+  return out;
+}
+const EDGES = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
+
+function drawView() {
+  if (!S) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const side = armTab;
+  const fence = S.draft.workspace[side];
+  const legacy = !fence && S.legacy_fence && S.legacy_fence.x_min !== undefined ? S.legacy_fence : null;
+  const box = fence && fence.x_min !== undefined ? fence : legacy;
+  const pts = points[side] || [];
+  const controllers = S.devices.filter(d => d.class === 'Controller' && d.position);
+
+  // Fit everything in view, smoothly.
+  const all = [...pts, ...controllers.map(d => d.position), ...(box ? corners(box) : [])];
+  let lo = [-0.5, -0.5, -0.5], hi = [0.5, 0.5, 0.5];
+  if (all.length) {
+    lo = [0, 1, 2].map(i => Math.min(...all.map(p => p[i])));
+    hi = [0, 1, 2].map(i => Math.max(...all.map(p => p[i])));
+  }
+  const center = lo.map((v, i) => (v + hi[i]) / 2);
+  const extent = Math.max(0.4, ...hi.map((v, i) => v - lo[i]));
+  const target = Math.min(w, h) / (extent * 1.9);
+  view.center = view.center ? view.center.map((v, i) => v + (center[i] - v) * 0.15) : center;
+  view.scale = view.scale ? view.scale + (target - view.scale) * 0.15 : target;
+
+  const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw), cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+  const k = view.scale * view.zoom;
+  function project(p) {
+    const vx = p[0] - view.center[0], vy = p[1] - view.center[1], vz = p[2] - view.center[2];
+    const x1 = cy * vx - sy * vy, y1 = sy * vx + cy * vy;
+    return [w / 2 + x1 * k, h / 2 - (sp * y1 + cp * vz) * k];
+  }
+  function edges(list, color, dash = [], width = 1.5) {
+    const c = list.map(project);
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.setLineDash(dash);
+    ctx.beginPath();
+    for (const [a, b] of EDGES) { ctx.moveTo(c[a][0], c[a][1]); ctx.lineTo(c[b][0], c[b][1]); }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // 10 cm floor grid under the scene.
+  const z0 = lo[2];
+  ctx.strokeStyle = css('--line'); ctx.lineWidth = 1;
+  ctx.beginPath();
+  const step = 0.1, span = Math.ceil(extent / step / 2 + 2) * step;
+  for (let t = -span; t <= span + 1e-9; t += step) {
+    let a = project([view.center[0] + t, view.center[1] - span, z0]), b = project([view.center[0] + t, view.center[1] + span, z0]);
+    ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+    a = project([view.center[0] - span, view.center[1] + t, z0]); b = project([view.center[0] + span, view.center[1] + t, z0]);
+    ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+  }
+  ctx.stroke();
+
+  if (box) {
+    edges(corners(box), legacy ? css('--muted') : css('--fg'), legacy ? [6, 5] : [], 1.6);
+    if (['x', 'y', 'z'].every(a => box[a + '_max'] - box[a + '_min'] > 2 * S.padding)) edges(corners(box, S.padding), css('--warn'), [4, 4], 1);
+  }
+
+  ctx.fillStyle = css('--accent');
+  for (const p of pts) { const [x, y] = project(p); ctx.fillRect(x - 1.5, y - 1.5, 3, 3); }
+
+  ctx.font = '11px ui-monospace, Menlo, monospace';
+  for (const d of controllers) {
+    const [x, y] = project(d.position);
+    const mine = d.serial === S.draft.devices[side];
+    ctx.fillStyle = d.fence ? css({ inside: '--ok', warning: '--warn', outside: '--bad' }[d.fence])
+                            : d.role === 'right' ? css('--right') : d.role === 'left' ? css('--left') : css('--muted');
+    ctx.beginPath(); ctx.arc(x, y, mine ? 6 : 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = css('--fg');
+    ctx.fillText(d.role ? ROLE[d.role] : d.serial, x + 9, y + 4);
+  }
+
+  // Axes in the corner.
+  const o = [34, h - 30];
+  for (const [axis, color, label] of [[[1, 0, 0], '#e03131', 'x'], [[0, 1, 0], '#2f9e44', 'y'], [[0, 0, 1], '#1971c2', 'z']]) {
+    const x1 = cy * axis[0] - sy * axis[1], y1 = sy * axis[0] + cy * axis[1];
+    const end = [o[0] + x1 * 22, o[1] - (sp * y1 + cp * axis[2]) * 22];
+    ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(end[0], end[1]); ctx.stroke();
+    ctx.fillText(label, end[0] + 3, end[1] + 4);
+  }
+}
+
+let drag = null;
+canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove', e => {
+  if (!drag) return;
+  view.yaw += (e.clientX - drag.x) * 0.008;
+  view.pitch = Math.max(-1.5, Math.min(1.5, view.pitch + (e.clientY - drag.y) * 0.008));
+  drag = { x: e.clientX, y: e.clientY };
+  drawView();
+});
+canvas.addEventListener('pointerup', () => { drag = null; });
+canvas.addEventListener('wheel', e => { e.preventDefault(); view.zoom = Math.max(0.3, Math.min(5, view.zoom * Math.exp(-e.deltaY * 0.001))); drawView(); },
+                        { passive: false });
+canvas.addEventListener('dblclick', () => { view.yaw = -0.7; view.pitch = 0.45; view.zoom = 1; drawView(); });
+window.addEventListener('resize', drawView);
+
+// --- controls -----------------------------------------------------------------------------------
+$('#robot').onchange = e => api('select/robot', { robot: e.target.value });
+$('#origin').onchange = e => api('select/origin', { serial: e.target.value });
+$('#save').onclick = () => api('save');
+$('#revert').onclick = () => api('revert');
+$('#paint').onclick = () => api('paint/start', { side: armTab });
+$('#done').onclick = () => api('paint/stop');
+$('#cancel').onclick = () => api('cancel');
+$('#clear').onclick = () => { if (confirm(`Remove the ${armTab} arm fence?`)) api('paint/clear', { side: armTab }); };
+$('#fence-on').onchange = e => api('set/fence/enabled', { side: armTab, enabled: e.target.checked });
+$('#margin').oninput = e => { $('#margin-val').textContent = (+e.target.value).toFixed(2) + ' m'; };
+$('#margin').onchange = e => api('set/margin', { margin: +e.target.value });
+window.addEventListener('beforeunload', e => { if (S && S.dirty && S.station_exists) { e.preventDefault(); e.returnValue = ''; } });
+
+setInterval(poll, 100);
+poll();
+</script>
+</body>
+</html>
