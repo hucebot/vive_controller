@@ -70,7 +70,7 @@ RUN chmod +x /entrypoint.sh
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc \
     && echo "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" >> ~/.bashrc
 
-# This stage keeps the container open for dev work (mounting handled by run_docker.py)
+# This stage keeps the container open for dev work (source mounted by docker-compose.yml)
 CMD ["/bin/bash"]
 
 # --- STAGE 4: App (Standalone Deployment) ---

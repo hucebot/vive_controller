@@ -1,0 +1,23 @@
+# Unitree G1 humanoid, both hands (`make g1`). See franka.yaml for the keys.
+description: Unitree G1, dual arm (g1pilot)
+rviz: false
+linear_scale: 1.0
+use_origin_lighthouse: false
+arms:
+  left:
+    output_topic: /g1pilot/left_hand/pose_ref
+    reference_frame: world
+    target_frame: left_hand_point_contact
+    publish_frequency: -1.0
+    # The trackpad drives the hand, so it only counts while pressed.
+    trackpad_pressed_required: true
+    buttons:
+      trackpad_x: /g1pilot/left_hand/dx3/action
+  right:
+    output_topic: /g1pilot/right_hand/pose_ref
+    reference_frame: world
+    target_frame: right_hand_point_contact
+    publish_frequency: -1.0
+    trackpad_pressed_required: true
+    buttons:
+      trackpad_x: /g1pilot/right_hand/dx3/action

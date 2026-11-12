@@ -12,6 +12,12 @@
 #### Tiago specific cyclonedds
 config/cyclonedds.xml
 
+#### Local to each machine: its setup (`make setup`) and the old-style fence file
+config/station.yaml
+config/station.yaml.tmp
+config/workspace.yaml
+config/*.bak
+
 ####### PYTHON.gitignore #######
 # Byte-compiled / optimized / DLL files
 __pycache__/

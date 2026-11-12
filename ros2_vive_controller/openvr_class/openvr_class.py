@@ -7,7 +7,6 @@ import yaml
 
 import numpy as np
 
-from functools import lru_cache
 from scipy.spatial.transform import Rotation as R
 
 def convert_to_quaternion(pose_mat):
@@ -85,18 +84,65 @@ def get_pose(vr_obj):
     return vr_obj.getDeviceToAbsoluteTrackingPose(openvr.TrackingUniverseStanding, 0, openvr.k_unMaxTrackedDeviceCount)
 
 
+def matrix_is_initialized(pose_mat):
+    """True if SteamVR has filled in this pose matrix.
+
+    An uninitialised matrix is all zeros, while any valid rotation has non-zero diagonal
+    elements. The translation alone is not enough: it is (0,0,0) for a device at the origin.
+    """
+    return not (pose_mat[0][0] == 0.0 and pose_mat[1][1] == 0.0 and pose_mat[2][2] == 0.0)
+
+
+_TRACKING_RESULT_NAMES = {
+    1: 'Uninitialized', 100: 'Calibrating_InProgress', 101: 'Calibrating_OutOfRange',
+    200: 'Running_OK', 201: 'Running_OutOfRange', 300: 'Fallback_RotationOnly',
+}
+
+
+def tracking_ok(tracking_result):
+    """True if SteamVR tracks the device optically (not dead-reckoning from the IMU)."""
+    return int(tracking_result) == int(openvr.TrackingResult_Running_OK)
+
+
+def tracking_result_name(tracking_result):
+    return _TRACKING_RESULT_NAMES.get(int(tracking_result), str(int(tracking_result)))
+
+
+def _safe(fn, default='unknown'):
+    try:
+        return fn()
+    except Exception:
+        return default
+
+
 class vr_tracked_device():
-    def __init__(self,vr_obj,index,device_class):
+    def __init__(self, vr_obj, index, device_class, serial=None):
         self.device_class = device_class
         self.index = index
         self.vr = vr_obj
+        self._serial = serial or None
 
-    @lru_cache(maxsize=None)
+    def _read_string_property(self, prop):
+        value = self.vr.getStringTrackedDeviceProperty(self.index, prop)
+        # pyopenvr >= 1.0 returns str, older releases returned bytes.
+        if isinstance(value, bytes):
+            value = value.decode('utf-8')
+        return value
+
     def get_serial(self):
-        return self.vr.getStringTrackedDeviceProperty(self.index, openvr.Prop_SerialNumber_String)
+        """Serial number, read once and cached.
+
+        Returns '' while SteamVR cannot answer yet (the read is retried on the next call).
+        """
+        if not self._serial:
+            try:
+                self._serial = self._read_string_property(openvr.Prop_SerialNumber_String) or None
+            except Exception:
+                self._serial = None
+        return self._serial or ''
 
     def get_model(self):
-        return self.vr.getStringTrackedDeviceProperty(self.index, openvr.Prop_ModelNumber_String)
+        return self._read_string_property(openvr.Prop_ModelNumber_String)
 
     def get_battery_percent(self):
         return self.vr.getFloatTrackedDeviceProperty(self.index, openvr.Prop_DeviceBatteryPercentage_Float)
@@ -118,18 +164,31 @@ class vr_tracked_device():
                 time.sleep(sleep_time)
         return rtn
 
-    def get_pose_quaternion(self, pose=None):
-        if pose == None:
+    def get_pose_quaternion(self, pose=None, require_valid=True):
+        """Pose as [x, y, z, qx, qy, qz, qw], or None if there is no usable pose.
+
+        With require_valid=False the stored matrix is used even when SteamVR flags the pose as
+        invalid, as long as it has been initialised. Lighthouse 2.0 base stations report
+        bPoseIsValid=False although their calibrated pose is present in the matrix.
+        """
+        if pose is None:
             pose = get_pose(self.vr)
-        if pose[self.index].bPoseIsValid:
-            return convert_to_quaternion(pose[self.index].mDeviceToAbsoluteTracking)
-        else:
-            return None
+        device_pose = pose[self.index]
+        if device_pose.bPoseIsValid:
+            return convert_to_quaternion(device_pose.mDeviceToAbsoluteTracking)
+        if not require_valid and matrix_is_initialized(device_pose.mDeviceToAbsoluteTracking):
+            return convert_to_quaternion(device_pose.mDeviceToAbsoluteTracking)
+        return None
+
+    def get_tracking_result(self, pose=None):
+        """SteamVR's tracking status for this device (an openvr.TrackingResult_* value)."""
+        if pose is None:
+            pose = get_pose(self.vr)
+        return int(pose[self.index].eTrackingResult)
 
     def get_pose_euler(self, pose=None):
         if pose == None:
             pose = get_pose(self.vr)
-            print(pose)
         if pose[self.index].bPoseIsValid:
             return convert_to_euler(pose[self.index].mDeviceToAbsoluteTracking)
         else:
@@ -187,11 +246,19 @@ class vr_tracked_device():
 
 class vr_tracking_reference(vr_tracked_device):
     def get_mode(self):
-        return self.vr.getStringTrackedDeviceProperty(self.index,openvr.Prop_ModeLabel_String).decode('utf-8').upper()
+        return self._read_string_property(openvr.Prop_ModeLabel_String).upper()
     def sample(self,num_samples,sample_rate):
         print("Warning: Tracking References do not move, sample isn't much use...")
 
 class triad_openvr():
+    """Registry of the tracked devices SteamVR knows about.
+
+    Device names (``controller_1``, ``tracker_2``, ...) stay attached to one serial number for
+    the lifetime of the object and are never handed to a different physical device. Prefer
+    :meth:`get_device_by_serial` over caching names: a device that is switched off disappears
+    from :attr:`devices` until it comes back.
+    """
+
     def __init__(self, configfile_path=None):
         # Initialize OpenVR in the
         self.vr = openvr.init(openvr.VRApplication_Other)
@@ -201,6 +268,11 @@ class triad_openvr():
         self.object_names = {"Tracking Reference":[],"HMD":[],"Controller":[],"Tracker":[]}
         self.devices = {}
         self.device_index_map = {}
+        # Name counters only ever grow, so a device that drops out and comes back can never take
+        # over the name (and dict entry) of another live device.
+        self._name_counters = {class_name: 0 for class_name in self.object_names}
+        # serial -> name, kept after a device disconnects so it gets its old name back.
+        self._serial_to_name = {}
         poses = self.vr.getDeviceToAbsoluteTrackingPose(openvr.TrackingUniverseStanding, 0,
                                                                openvr.k_unMaxTrackedDeviceCount)
 
@@ -231,6 +303,43 @@ class triad_openvr():
             elif event.eventType == openvr.VREvent_TrackedDeviceDeactivated:
                 if event.trackedDeviceIndex in self.device_index_map:
                     self.remove_tracked_device(event.trackedDeviceIndex)
+
+    def sync_connected_devices(self):
+        """Register connected devices that SteamVR did not announce with an activation event.
+
+        Returns the names of the devices added.
+        """
+        poses = self.vr.getDeviceToAbsoluteTrackingPose(openvr.TrackingUniverseStanding, 0,
+                                                        openvr.k_unMaxTrackedDeviceCount)
+        added = []
+        for i in range(openvr.k_unMaxTrackedDeviceCount):
+            if poses[i].bDeviceIsConnected and i not in self.device_index_map:
+                name = self.add_tracked_device(i)
+                if name:
+                    added.append(name)
+        return added
+
+    def get_device_by_serial(self, serial):
+        """The connected device with this serial number, or None."""
+        if not serial:
+            return None
+        name = self._serial_to_name.get(serial)
+        device = self.devices.get(name) if name else None
+        if device is not None and device.get_serial() == serial:
+            return device
+        # The serial may not have been readable when the device was registered: look again.
+        for name, device in self.devices.items():
+            if device.get_serial() == serial:
+                self._serial_to_name[serial] = name
+                return device
+        return None
+
+    def get_device_name_by_serial(self, serial):
+        """Registry name of the connected device with this serial number, or None."""
+        device = self.get_device_by_serial(serial)
+        if device is None:
+            return None
+        return self.device_index_map.get(device.index)
 
     def wait_for_n_tracking_references(self, n=3, poll_interval=0.1):
         print(f"Waiting for {n} tracking references...")
@@ -270,33 +379,63 @@ class triad_openvr():
             references[i] = final_name
 
 
+    def _new_device_name(self, class_name, prefix):
+        while True:
+            self._name_counters[class_name] += 1
+            name = prefix + "_" + str(self._name_counters[class_name])
+            if name not in self.devices:
+                return name
+
     def add_tracked_device(self, tracked_device_index):
+        """Register the device in this slot and return its name (None for unsupported classes).
+
+        A device that comes back after being switched off gets its previous name again. Names are
+        never derived from how many devices are currently connected: doing so let a returning
+        controller take over the name, and the dict entry, of the other one.
+        """
         i = tracked_device_index
         device_class = self.vr.getTrackedDeviceClass(i)
 
         if (device_class == openvr.TrackedDeviceClass_Controller):
-            device_name = "controller_"+str(len(self.object_names["Controller"])+1)
-            self.object_names["Controller"].append(device_name)
-            self.devices[device_name] = vr_tracked_device(self.vr,i,"Controller")
-            self.device_index_map[i] = device_name
-
+            class_name, prefix, device_type = "Controller", "controller", vr_tracked_device
         elif (device_class == openvr.TrackedDeviceClass_HMD):
-            device_name = "hmd_"+str(len(self.object_names["HMD"])+1)
-            self.object_names["HMD"].append(device_name)
-            self.devices[device_name] = vr_tracked_device(self.vr,i,"HMD")
-            self.device_index_map[i] = device_name
-
+            class_name, prefix, device_type = "HMD", "hmd", vr_tracked_device
         elif (device_class == openvr.TrackedDeviceClass_GenericTracker):
-            device_name = "tracker_"+str(len(self.object_names["Tracker"])+1)
-            self.object_names["Tracker"].append(device_name)
-            self.devices[device_name] = vr_tracked_device(self.vr,i,"Tracker")
-            self.device_index_map[i] = device_name
-
+            class_name, prefix, device_type = "Tracker", "tracker", vr_tracked_device
         elif (device_class == openvr.TrackedDeviceClass_TrackingReference):
-            device_name = "tracking_reference_"+str(len(self.object_names["Tracking Reference"])+1)
-            self.object_names["Tracking Reference"].append(device_name)
-            self.devices[device_name] = vr_tracking_reference(self.vr,i,"Tracking Reference")
-            self.device_index_map[i] = device_name
+            class_name, prefix, device_type = "Tracking Reference", "tracking_reference", vr_tracking_reference
+        else:
+            return None
+
+        device = device_type(self.vr, i, class_name)
+        serial = device.get_serial()
+
+        existing_name = self.device_index_map.get(i)
+        if existing_name is not None:
+            if self.devices[existing_name].get_serial() == serial:
+                # SteamVR announced a device we already track (it does so right after start-up).
+                return existing_name
+            # The slot now holds a different device: forget the old one first.
+            self.remove_tracked_device(i)
+
+        if serial:
+            stale_name = self._serial_to_name.get(serial)
+            stale_device = self.devices.get(stale_name) if stale_name else None
+            if stale_device is not None:
+                # Same physical device in a new slot: drop the stale entry.
+                self.remove_tracked_device(stale_device.index)
+
+        # Give a returning device its old name back, unless something else holds it now.
+        device_name = self._serial_to_name.get(serial) if serial else None
+        if device_name is None or device_name in self.devices:
+            device_name = self._new_device_name(class_name, prefix)
+
+        self.object_names[class_name].append(device_name)
+        self.devices[device_name] = device
+        self.device_index_map[i] = device_name
+        if serial:
+            self._serial_to_name[serial] = device_name
+        return device_name
 
     def remove_tracked_device(self, tracked_device_index):
         if tracked_device_index in self.device_index_map:
@@ -312,6 +451,15 @@ class triad_openvr():
         for i in range(len(self.object_names[self.devices[new_device_name].device_class])):
             if self.object_names[self.devices[new_device_name].device_class][i] == old_device_name:
                 self.object_names[self.devices[new_device_name].device_class][i] = new_device_name
+        device = self.devices[new_device_name]
+        if self.device_index_map.get(device.index) == old_device_name:
+            self.device_index_map[device.index] = new_device_name
+        for serial, name in list(self._serial_to_name.items()):
+            if name == old_device_name:
+                self._serial_to_name[serial] = new_device_name
+            elif name == new_device_name:
+                # The name used to belong to a device that is switched off: it can't have it back.
+                del self._serial_to_name[serial]
 
     def print_discovered_objects(self):
         for device_type in self.object_names:
@@ -320,11 +468,12 @@ class triad_openvr():
                 plural+="s"
             print("Found "+str(len(self.object_names[device_type]))+" "+plural)
             for device in self.object_names[device_type]:
+                dev = self.devices[device]
                 if device_type == "Tracking Reference":
-                    print("  "+device+" ("+self.devices[device].get_serial()+
-                          ", Mode "+self.devices[device].get_model()+
-                          ", "+self.devices[device].get_model()+
+                    print("  "+device+" ("+dev.get_serial()+
+                          ", Mode "+_safe(dev.get_mode)+
+                          ", "+_safe(dev.get_model)+
                           ")")
                 else:
-                    print("  "+device+" ("+self.devices[device].get_serial()+
-                          ", "+self.devices[device].get_model()+")")
+                    print("  "+device+" ("+dev.get_serial()+
+                          ", "+_safe(dev.get_model)+")")

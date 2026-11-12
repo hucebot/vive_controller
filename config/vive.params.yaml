@@ -1,26 +1,16 @@
+# Defaults for the Vive controller drivers (vive_node).
+#
+# The workspace fence stays off until you run `make calibrate`. That writes config/workspace.yaml
+# (local to your setup, not tracked by git), which the launch files load after this file.
 /**:
   ros__parameters:
-    workspace:
-      x_max: -0.78
-      x_min: -1.031
-      y_max: 0.029
-      y_min: -0.096
-      z_max: -0.124
-      z_min: -0.258
-/vive/**:
-  ros__parameters:
+    frame_id: vive_world
     filter:
       beta: 0.01
       dcutoff: 1.0
       mincutoff: 1.0
-    frame_id: vive_world
-    htc_vive:
-      tracking_reference: LHB-DFA5BD2C
     workspace:
+      enabled: false
+      # Width of the warning band inside the fence (m): the controller vibrates there but the
+      # pose is still published. Outside the fence the pose is held back.
       padding: 0.15
-      x_max: 10.5
-      x_min: -10.5
-      y_max: 10.5
-      y_min: -10.5
-      z_max: 20.2
-      z_min: -20.2

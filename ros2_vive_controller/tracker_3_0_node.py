@@ -68,14 +68,18 @@ class ViveTracker3_0Node(BaseViveTracker3_0Node):
                 )
 
     def update(self):
-        if not self.device_name:
-            return
-
         # Don't publish until reference frame is established
         if self.reference_lighthouse_serial and self.T_lighthouse_inv is None:
             return
 
-        tracker = self.vr.devices[self.device_name]
+        # Looked up by serial every cycle: a tracker switched off and on again is picked up again.
+        tracker = self.vr.get_device_by_serial(self.serial)
+        if tracker is None:
+            if self.tracking_active:
+                self.get_logger().warn(f"Tracker '{self.tracker_name}' ({self.serial}) disconnected")
+                self.tracking_active = False
+            return
+
         pose = tracker.get_pose_quaternion()
 
         if pose is None:
@@ -107,7 +111,9 @@ def main():
     except KeyboardInterrupt:
         pass
     node.destroy_node()
-    rclpy.shutdown()
+    # On Ctrl+C rclpy's signal handler has already shut the context down.
+    if rclpy.ok():
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":

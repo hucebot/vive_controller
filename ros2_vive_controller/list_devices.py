@@ -14,7 +14,7 @@ def list_all_devices():
         device_class = device.device_class
 
         # Highlight lighthouses
-        if device_class == "TrackingReference":
+        if device_class == "Tracking Reference":
             print(f"🟢 LIGHTHOUSE  | Name: {name:<15} | Serial: {serial}")
         elif device_class == "Controller":
             print(f"🎮 CONTROLLER  | Name: {name:<15} | Serial: {serial}")

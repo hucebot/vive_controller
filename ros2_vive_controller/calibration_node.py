@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
-# 1. NEW IMPORTS FOR LATCHING
 import numpy as np
-import yaml
-import os
-import shutil
 
 # ROS Messages
 from std_msgs.msg import Bool
@@ -13,29 +9,42 @@ from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import JointState
 from visualization_msgs.msg import Marker
 
+from ros2_vive_controller import station as st
+from ros2_vive_controller.workspace import bounds_from_points
+
 
 class CalibrationNode(Node):
+    """Paint one arm's workspace with its controller and save it as that arm's fence.
+
+    The bounds are written to the station file (config/station.yaml, ``workspace.<side>``) together
+    with the frame the poses were in, so the driver only applies them in that same frame. The setup
+    app (`make setup`) does the same from a browser.
+    """
+
     def __init__(self):
         super().__init__('vive_calibration')
 
         # --- Parameters ---
-        self.declare_parameter('target_frame', 'vive_world')
-        self.declare_parameter(
-            'config_path', '/ros2_ws/src/ros2_vive_controller/config/vive.params.yaml')
+        self.declare_parameter('station_file', '/ros2_ws/src/ros2_vive_controller/config/station.yaml')
+        self.declare_parameter('side', 'right')
+        # Grow the painted box by this much on every face (m).
+        self.declare_parameter('margin', 0.05)
 
-        self.target_frame = self.get_parameter('target_frame').value
-        self.config_path = self.get_parameter('config_path').value
+        self.station_file = self.get_parameter('station_file').value
+        self.side = self.get_parameter('side').value
+        self.margin = self.get_parameter('margin').value
 
         # --- State ---
         self.points = []
         self.is_recording = False
         self.current_pose = None
+        self.frame_id = None
 
         # --- Subscribers ---
         self.sub_pose = self.create_subscription(
-            PoseStamped, '/vive/right/pose', self.pose_cb, 10)
+            PoseStamped, f'/vive/{self.side}/pose', self.pose_cb, 10)
         self.sub_joy = self.create_subscription(
-            JointState, '/vive/right/joint_states', self.joy_cb, 10)
+            JointState, f'/vive/{self.side}/joint_states', self.joy_cb, 10)
 
         # --- Publishers ---
         self.pub_marker = self.create_publisher(
@@ -48,15 +57,13 @@ class CalibrationNode(Node):
             10
         )
 
-        # Publish heartbeat at 10Hz (Fast enough to keep driver happy)
+        # Heartbeat at 10 Hz: while it is received, the driver's workspace fence is off.
         self.create_timer(0.1, self.publish_heartbeat)
-
-        # This message will now stick for any node that subscribes later
-        self.pub_is_calibrating.publish(Bool(data=True))
+        self.publish_heartbeat()
 
         self.get_logger().info("AUTO-SAVE CALIBRATION READY.")
-        self.get_logger().info(f"Target Config: {self.config_path}")
-        self.get_logger().info("Hold RIGHT TRIGGER to paint. Press CTRL+C to SAVE and EXIT.")
+        self.get_logger().info(f"Target file: {self.station_file} ({self.side} arm)")
+        self.get_logger().info(f"Hold the {self.side.upper()} TRIGGER to paint. Press CTRL+C to SAVE and EXIT.")
 
     def publish_heartbeat(self):
         msg = Bool()
@@ -64,6 +71,13 @@ class CalibrationNode(Node):
         self.pub_is_calibrating.publish(msg)
 
     def pose_cb(self, msg):
+        frame = msg.header.frame_id
+        if self.frame_id is not None and frame != self.frame_id:
+            # E.g. the reference lighthouse was found after painting started.
+            self.get_logger().warn(
+                f"Pose frame changed from '{self.frame_id}' to '{frame}': discarding {len(self.points)} points.")
+            self.points = []
+        self.frame_id = frame
         self.current_pose = np.array([
             msg.pose.position.x, msg.pose.position.y, msg.pose.position.z
         ])
@@ -80,7 +94,7 @@ class CalibrationNode(Node):
 
         if trigger_val > 0.5:
             if not self.is_recording:
-                self.get_logger().info("Recording...")
+                self.get_logger().info(f"Recording in frame '{self.frame_id}'...")
             self.is_recording = True
 
             # Distance Filter (2cm)
@@ -96,7 +110,7 @@ class CalibrationNode(Node):
 
         # 1. Points
         m = Marker()
-        m.header.frame_id = self.target_frame
+        m.header.frame_id = self.frame_id
         m.header.stamp = self.get_clock().now().to_msg()
         m.ns = "cloud"
         m.id = 0
@@ -121,7 +135,7 @@ class CalibrationNode(Node):
         dims = max_v - min_v
 
         box = Marker()
-        box.header.frame_id = self.target_frame
+        box.header.frame_id = self.frame_id
         box.header.stamp = self.get_clock().now().to_msg()
         box.ns = "bbox"
         box.id = 1
@@ -134,67 +148,29 @@ class CalibrationNode(Node):
         self.pub_bbox.publish(box)
 
     def save_and_exit(self):
-        # Update the latched status to False so late joiners know we are done
         if len(self.points) < 10:
             self.get_logger().warn("Not enough points. Exiting without save.")
             return
 
-        # 1. Calculation
-        pts = np.array(self.points)
-        mean = np.mean(pts, axis=0)
-        std = np.std(pts, axis=0)
-        clean_pts = pts[(np.abs((pts - mean) / (std + 1e-9))
-                         < 3.0).all(axis=1)]
-
-        if len(clean_pts) == 0:
+        bounds = bounds_from_points(self.points, margin=self.margin)
+        if bounds is None:
             self.get_logger().error("All points filtered out! Try painting more consistently.")
             return
 
-        min_v = np.min(clean_pts, axis=0)
-        max_v = np.max(clean_pts, axis=0)
-
-        padding = 0.05
-
-        # 2. Backup existing file
-        if os.path.exists(self.config_path):
-            backup_path = self.config_path + ".bak"
-            shutil.copy(self.config_path, backup_path)
-            self.get_logger().info(f"Backup created at: {backup_path}")
-
-        # 3. Load & Update YAML
         try:
-            with open(self.config_path, 'r') as f:
-                data = yaml.safe_load(f) or {}
-
-            if '/**' not in data:
-                data['/**'] = {}
-            if 'ros__parameters' not in data['/**']:
-                data['/**']['ros__parameters'] = {}
-
-            params = data['/**']['ros__parameters']
-            if 'workspace' not in params:
-                params['workspace'] = {}
-
-            ws = params['workspace']
-            ws['x_min'] = float(round(min_v[0] - padding, 3))
-            ws['x_max'] = float(round(max_v[0] + padding, 3))
-            ws['y_min'] = float(round(min_v[1] - padding, 3))
-            ws['y_max'] = float(round(max_v[1] + padding, 3))
-            ws['z_min'] = float(round(min_v[2] - padding, 3))
-            ws['z_max'] = float(round(max_v[2] + padding, 3))
-
-            with open(self.config_path, 'w') as f:
-                yaml.dump(data, f, default_flow_style=False)
-
+            station = st.set_fence(st.load(self.station_file), self.side, bounds, self.frame_id)
+            backup = st.save(self.station_file, station, writer='calibration_node (make calibrate)')
+            if backup:
+                self.get_logger().info(f"Backup created at: {backup}")
             self.get_logger().info("="*40)
-            self.get_logger().info(
-                f"SUCCESS! Config updated: {self.config_path}")
-            self.get_logger().info(
-                f"New Bounds: X[{ws['x_min']}, {ws['x_max']}]")
+            self.get_logger().info(f"SUCCESS! {self.side.capitalize()} arm fence saved: {self.station_file}")
+            self.get_logger().info(f"Frame: {self.frame_id}")
+            for axis in 'xyz':
+                self.get_logger().info(f"  {axis}: [{bounds[axis + '_min']}, {bounds[axis + '_max']}]")
+            self.get_logger().info("The fence is active the next time the drivers start.")
             self.get_logger().info("="*40)
-
         except Exception as e:
-            self.get_logger().error(f"Failed to save config: {e}")
+            self.get_logger().error(f"Failed to save workspace: {e}")
 
 
 def main(args=None):
@@ -204,10 +180,10 @@ def main(args=None):
         rclpy.spin(node)
     except KeyboardInterrupt:
         node.save_and_exit()
-        rclpy.spin_once(node, timeout_sec=0.1)
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

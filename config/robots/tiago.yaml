@@ -1,0 +1,22 @@
+# PAL TIAGo, both arms (`make tiago`). See franka.yaml for the keys.
+description: TIAGo, dual arm
+rviz: true
+linear_scale: 1.0
+use_origin_lighthouse: false
+arms:
+  left:
+    output_topic: /vive/left/output_pose
+    reference_frame: opensot/base_link
+    target_frame: opensot/gripper_left_grasping_frame
+    publish_frequency: 30.0
+    rotation_offset: [0.0, 0.0, 0.0]
+    buttons:
+      menu: /vive/left/gripper
+  right:
+    output_topic: /vive/right/output_pose
+    reference_frame: opensot/base_link
+    target_frame: opensot/gripper_right_grasping_frame
+    publish_frequency: 30.0
+    rotation_offset: [0.0, 0.0, 0.0]
+    buttons:
+      menu: /vive/right/gripper
