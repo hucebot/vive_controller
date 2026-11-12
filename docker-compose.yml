@@ -163,7 +163,7 @@ services:
       CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/franka_cyclonedds.xml
     command: >
       ros2 launch ros2_vive_controller franka_single.launch.py
-      serial_right:=${SERIAL_RIGHT:-LHR-9ABF6D66}
+      serial_right:=${SERIAL_RIGHT:-}
       reference_lighthouse_serial:=${REFERENCE_LIGHTHOUSE_SERIAL:-}
       only_right:=true
       linear_scale:=${LINEAR_SCALE:-2.0}
@@ -179,8 +179,8 @@ services:
       CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/tiago_cyclonedds.xml
     command: >
       ros2 launch ros2_vive_controller tiago_dual.launch.py
-      serial_left:=${SERIAL_LEFT:-LHR-97752221}
-      serial_right:=${SERIAL_RIGHT:-LHR-9ABF6D66}
+      serial_left:=${SERIAL_LEFT:-}
+      serial_right:=${SERIAL_RIGHT:-}
       linear_scale:=${LINEAR_SCALE:-1.0}
 
   # ── TIAGO (Dual Arm) ─────────────────────────────────────────────────────
@@ -194,8 +194,8 @@ services:
       CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/tiago_cyclonedds.xml
     command: >
       ros2 launch ros2_vive_controller tiago_pro.launch.py
-      serial_left:=${SERIAL_LEFT:-LHR-97752221}
-      serial_right:=${SERIAL_RIGHT:-LHR-9ABF6D66}
+      serial_left:=${SERIAL_LEFT:-}
+      serial_right:=${SERIAL_RIGHT:-}
       linear_scale:=${LINEAR_SCALE:-1.0}
 
 
@@ -209,6 +209,6 @@ services:
       CYCLONEDDS_URI: file:///ros2_ws/src/ros2_vive_controller/config/cyclonedds.xml
     command: >
       ros2 launch ros2_vive_controller g1_dual.launch.py
-      serial_left:=${SERIAL_LEFT:-LHR-97752221}
-      serial_right:=${SERIAL_RIGHT:-LHR-9ABF6D66}
+      serial_left:=${SERIAL_LEFT:-}
+      serial_right:=${SERIAL_RIGHT:-}
       linear_scale:=${LINEAR_SCALE:-1.0}

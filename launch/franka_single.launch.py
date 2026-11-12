@@ -12,11 +12,11 @@ def generate_launch_description():
 
     # --- General Launch Arguments ---
     serial_right_arg = DeclareLaunchArgument(
-        'serial_right', default_value='LHR-9ABF6D66', description='Serial number for the right controller'
+        'serial_right', default_value='', description='Serial number for the right controller'
     )
 
     serial_left_arg = DeclareLaunchArgument(
-        'serial_left', default_value='LHR-97752221', description='Serial number for the left controller'
+        'serial_left', default_value='', description='Serial number for the left controller'
     )
 
     reference_lighthouse_serial_arg = DeclareLaunchArgument(

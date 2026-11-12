@@ -33,8 +33,10 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('rviz', default_value='true'),
-        DeclareLaunchArgument('serial_left', default_value='LHR-97752221'),
-        DeclareLaunchArgument('serial_right', default_value='LHR-9ABF6D66'),
+        DeclareLaunchArgument('serial_left', default_value='',
+                              description='Left controller serial (SERIAL_LEFT in .env)'),
+        DeclareLaunchArgument('serial_right', default_value='',
+                              description='Right controller serial (SERIAL_RIGHT in .env)'),
 
         # --- CHANGED: Name matches parent launch and node parameter ---
         DeclareLaunchArgument('reference_lighthouse_serial', default_value=''),

@@ -11,15 +11,31 @@ def generate_launch_description():
     pkg_share = get_package_share_directory('ros2_vive_controller')
     included_launch_path = os.path.join(pkg_share, 'launch', 'vive_teleop.launch.py')
 
-    # 2. Define the Include action for hardware drivers
+    # 2. Hardware arguments (set SERIAL_LEFT / SERIAL_RIGHT in .env; they used to be hardcoded
+    #    here, which silently overrode .env)
+    serial_right_arg = DeclareLaunchArgument(
+        'serial_right', default_value='', description='Serial number for the right controller'
+    )
+    serial_left_arg = DeclareLaunchArgument(
+        'serial_left', default_value='', description='Serial number for the left controller'
+    )
+    reference_lighthouse_serial_arg = DeclareLaunchArgument(
+        'reference_lighthouse_serial', default_value='',
+        description='Lighthouse used as TF origin (changes the frame poses are published in)'
+    )
+    linear_scale_arg = DeclareLaunchArgument(
+        'linear_scale', default_value='1.0', description='Linear scaling for both controllers'
+    )
+
+    # Define the Include action for hardware drivers
     include_vive_teleop = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(included_launch_path),
         launch_arguments={
             'rviz': 'false',
-            # 'serial_left': 'LHR-21C1BC92',
-            'serial_right': 'LHR-1BF07D86',
-           # 'serial_right': 'LHR-1BF07D86',
-            'serial_left': 'LHR-4F5A9AC8',
+            'serial_right': LaunchConfiguration('serial_right'),
+            'serial_left': LaunchConfiguration('serial_left'),
+            'reference_lighthouse_serial': LaunchConfiguration('reference_lighthouse_serial'),
+            'linear_scale': LaunchConfiguration('linear_scale'),
         }.items()
     )
 
@@ -103,6 +119,10 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        serial_right_arg,
+        serial_left_arg,
+        reference_lighthouse_serial_arg,
+        linear_scale_arg,
         include_vive_teleop,
         publish_frequency_arg,
         reference_frame_arg,

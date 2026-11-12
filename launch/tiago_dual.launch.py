@@ -13,16 +13,20 @@ def generate_launch_description():
 
     # --- General Launch Arguments ---
     serial_right_arg = DeclareLaunchArgument(
-        'serial_right', default_value='LHR-9ABF6D66',
+        'serial_right', default_value='',
         description='Serial number for the right controller'
     )
     serial_left_arg = DeclareLaunchArgument(
-        'serial_left', default_value='LHR-97752221',
+        'serial_left', default_value='',
         description='Serial number for the left controller'
     )
     linear_scale_arg = DeclareLaunchArgument(
         'linear_scale', default_value='1.0',
         description='Linear scaling for both controllers'
+    )
+    reference_lighthouse_serial_arg = DeclareLaunchArgument(
+        'reference_lighthouse_serial', default_value='',
+        description='Lighthouse used as TF origin (changes the frame poses are published in)'
     )
     publish_frequency_arg = DeclareLaunchArgument(
         'publish_frequency', default_value='30.0'
@@ -38,6 +42,7 @@ def generate_launch_description():
             'rviz': 'true',
             'serial_right': LaunchConfiguration('serial_right'),
             'serial_left': LaunchConfiguration('serial_left'),
+            'reference_lighthouse_serial': LaunchConfiguration('reference_lighthouse_serial'),
             'only_right': 'false', # Force dual-controller mode for Tiago
             'linear_scale': LaunchConfiguration('linear_scale')
         }.items()
@@ -97,6 +102,7 @@ def generate_launch_description():
         serial_right_arg,
         serial_left_arg,
         linear_scale_arg,
+        reference_lighthouse_serial_arg,
         publish_frequency_arg,
         reference_frame_arg,
         include_vive_teleop,
