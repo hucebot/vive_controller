@@ -68,3 +68,39 @@ def test_no_controller_is_reported(vr_system):
     lines = []
     assert run(vr, {}, seconds=0.01, min_wait=0.0, max_wait=0.0, out=lambda *a, **k: lines.append(a[0])) == 1
     assert 'No controller to vibrate.' in lines
+
+
+def test_listing_shows_whether_controllers_are_tracked(vr_system):
+    vr = _setup(vr_system)
+    vr_system.slots[1].pose_valid = False
+    lines = describe(vr, {})
+    assert any('LHR-OTHER' in line and 'not tracked' in line for line in lines)
+    assert any('LHR-RIGHT' in line and ' tracked' in line and 'not tracked' not in line for line in lines)
+
+
+def test_waits_for_a_base_station_and_explains_why(vr_system):
+    vr_system.plug(2, FakeDevice(CONTROLLER, 'LHR-RIGHT'), announce=False)
+    vr = triad_openvr()
+    polls = []
+    original_poll = vr.poll_vr_events
+
+    def poll():                                                # the controller sees the base station
+        polls.append(1)                                        # only after a few polls
+        if len(polls) == 5:
+            vr_system.plug(3, FakeDevice(LIGHTHOUSE, 'LHB-LATE'))
+        original_poll()
+
+    vr.poll_vr_events = poll
+    lines = []
+    run(vr, {}, seconds=0.01, min_wait=0.0, max_wait=0.0, lighthouse_wait=3.0,
+        out=lambda *a, **k: lines.append(a[0]))
+    assert any('No base station yet' in line for line in lines)
+    assert any('LHB-LATE' in line for line in lines)
+
+
+def test_gives_up_waiting_for_base_stations(vr_system):
+    vr_system.plug(2, FakeDevice(CONTROLLER, 'LHR-RIGHT'), announce=False)
+    vr = triad_openvr()
+    lines = []
+    run(vr, {}, seconds=0.01, min_wait=0.0, max_wait=0.0, lighthouse_wait=0.2, out=lambda *a, **k: lines.append(a[0]))
+    assert any('No base station yet' in line for line in lines)

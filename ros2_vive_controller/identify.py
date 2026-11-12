@@ -38,6 +38,29 @@ def wait_for_devices(vr, expected, min_wait, max_wait, sleep=time.sleep, clock=t
         sleep(0.1)
 
 
+def _has_base_station(vr):
+    return any(d.device_class == 'Tracking Reference' for d in vr.devices.values())
+
+
+def wait_for_base_stations(vr, timeout, out=print, sleep=time.sleep, clock=time.monotonic):
+    """SteamVR lists a base station only once a controller or tracker has seen it, which can take
+    a while after SteamVR starts. Wait for the first one (and a moment for the others)."""
+    if timeout <= 0 or _has_base_station(vr):
+        return
+    out('No base station yet: SteamVR lists them once a controller has seen them. Hold a controller '
+        f'up towards them (waiting up to {timeout:.0f} s)...', flush=True)
+    end = clock() + timeout
+    while clock() < end:
+        vr.poll_vr_events()
+        if _has_base_station(vr):
+            settle = clock() + 1.0
+            while clock() < settle:
+                vr.poll_vr_events()
+                sleep(0.1)
+            return
+        sleep(0.1)
+
+
 def _battery(device):
     try:
         return f'battery {device.get_battery_percent() * 100:3.0f}%'
@@ -51,8 +74,13 @@ def describe(vr, roles):
     devices = [d for d in vr.devices.values() if d.device_class != 'HMD']
     for device in sorted(devices, key=lambda d: (d.device_class, d.get_serial())):
         serial = device.get_serial()
-        battery = _battery(device) if device.device_class in ('Controller', 'Tracker') else ''
-        lines.append(f'  {device.device_class:<19} {serial:<14} {battery:<13} {roles.get(serial, NOT_CONFIGURED)}')
+        if device.device_class in ('Controller', 'Tracker'):
+            battery = _battery(device)
+            state = 'tracked' if device.get_pose_quaternion() is not None else 'not tracked'
+        else:
+            battery, state = '', ''
+        lines.append(f'  {device.device_class:<19} {serial:<14} {battery:<13} {state:<12} '
+                     f'{roles.get(serial, NOT_CONFIGURED)}')
     if not devices:
         lines.append('  (no device found: are the controllers switched on and the base stations powered?)')
     for serial, name in roles.items():
@@ -78,9 +106,10 @@ def controllers_to_buzz(vr, roles, only_serial=None):
     return sorted(controllers, key=lambda d: (order.get(roles.get(d.get_serial()), 2), d.get_serial()))
 
 
-def run(vr, roles, only_serial=None, seconds=1.5, min_wait=2.0, max_wait=8.0, out=print):
+def run(vr, roles, only_serial=None, seconds=1.5, min_wait=2.0, max_wait=8.0, lighthouse_wait=30.0, out=print):
     out('Looking for Vive devices...', flush=True)
     wait_for_devices(vr, list(roles), min_wait, max_wait)
+    wait_for_base_stations(vr, lighthouse_wait, out)
     out('SteamVR sees:')
     for line in describe(vr, roles):
         out(line)
@@ -103,11 +132,14 @@ def main(argv=None):
     parser.add_argument('--serial', help='only vibrate this controller')
     parser.add_argument('--seconds', type=float, default=1.5, help='vibration time per controller (s)')
     parser.add_argument('--wait', type=float, default=8.0, help='max time to wait for devices (s)')
+    parser.add_argument('--lighthouse-wait', type=float, default=30.0,
+                        help='max time to wait for a base station to show up (s, 0 to skip)')
     args = parser.parse_args(argv)
 
     from ros2_vive_controller.openvr_class.openvr_class import triad_openvr
     vr = triad_openvr()
-    return run(vr, roles_from_env(), args.serial, args.seconds, max_wait=args.wait)
+    return run(vr, roles_from_env(), args.serial, args.seconds, max_wait=args.wait,
+               lighthouse_wait=args.lighthouse_wait)
 
 
 if __name__ == '__main__':
