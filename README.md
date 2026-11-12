@@ -61,7 +61,9 @@ This project relies on a `.env` file to map your specific hardware to the Docker
    SERIAL_RIGHT=LHR-4BB3817E      # Right Controller/Tracker ID
    REFERENCE_LIGHTHOUSE_SERIAL=LHB-2E7D2119 # The master Lighthouse used as the TF origin (0,0,0)
    ```
-   > **Tip:** Don't know your serial numbers? Run `make identify` once the container is running to vibrate the controllers and verify which is which!
+   > **`.env` is the only place serials are set.** The launch files and `docker-compose.yml` no longer fall back to hardcoded serials, so each machine's `.env` (including the G1 one) must list its own controllers.
+   >
+   > **Tip:** Don't know your serial numbers? Start the drivers (`make drivers`) with an empty or wrong serial: the driver logs every connected controller and tracker with its serial. Then run `make identify` to vibrate the configured controllers and check which is which.
    > Otherwise, you can run `sudo dmesg -w | grep "LHR"` for the controllers or `sudo dmesg -w | grep "LHB"` for the base stations while plugging them in to see their serial numbers in real time.
 
 ### 2. DDS Network Interface Name
@@ -117,11 +119,14 @@ make g1          # Start Unitree G1 (Dual Arm Humanoid)
 ### 3. Utilities
 Manage the lifecycle and hardware with these helper commands:
 ```bash
-make identify    # Vibrates the connected controllers to verify left/right bindings
-make calibrate   # Launches the workspace calibration tool with RViz
+make drivers     # Starts only the Vive drivers + RViz (no robot), e.g. to check the controllers
+make identify    # Vibrates the right, then the left controller of the running container
+make calibrate   # Paints the workspace fence with the right controller (see "Virtual Safety Fence")
 make stop        # Safely shuts down running containers
 make clean       # Removes all containers and orphans
 ```
+
+Each `make <robot>` starts only that robot's container.
 
 ---
 
@@ -132,8 +137,13 @@ The driver is the core interface between the OpenVR runtime and ROS 2. It handle
 ### 🌟 Key Features
 
 * **Dynamic Lighthouse Origin (Stable TF Tree):** Standard SteamVR uses an invisible, arbitrary "Standing Universe" origin. This node allows you to specify a `reference_lighthouse_serial`. If found, the node automatically computes the math to make that physical Lighthouse the exact $(0,0,0)$ origin of your TF tree. It even applies an automatic 180° Z-axis flip to correct standard Lighthouse hardware alignments.
-* **Hot-Plug Polling:** Uses continuous OpenVR event polling. If a tracker or lighthouse is turned on *after* the Docker container starts, the node will gracefully detect it, establish the TF tree, and begin vibrating/tracking without needing a restart.
-* **Virtual Safety Fence (Haptics):** Monitors the controller's position against calibrated workspace bounds (`workspace.x_min`, etc.). If the hardware enters the padding zone, it triggers immediate 2ms haptic pulses to physically warn the operator.
+  * `docker-compose.yml` currently passes `REFERENCE_LIGHTHOUSE_SERIAL` to **Franka only**; TIAGo, TIAGo Pro and G1 publish in `vive_world`. Enabling it for another robot changes the frame its poses are published in, so its `rotation_offset` may need re-tuning.
+  * Base Station 2.0 units can report their pose as *invalid* although it is calibrated. The node then stays in `vive_world` and logs a warning; set `allow_invalid_lighthouse_pose:=true` to use the stored pose anyway.
+* **Hot-Plug Polling:** Uses continuous OpenVR event polling and looks devices up by serial on every cycle. If a tracker or lighthouse is turned on *after* the Docker container starts, or a controller is switched off and on again (battery swap, re-pairing), the node picks it up again without a restart, and the other side keeps tracking its own controller.
+* **Virtual Safety Fence (Haptics):** Off until you run `make calibrate`. Hold the right trigger and paint the space you want to work in, then press `Ctrl+C`: the bounds are written to `config/workspace.yaml` (local to your setup, not tracked by git) with the frame they were recorded in, and loaded the next time the drivers start.
+  * **Warning band** (`workspace.padding`, 0.15 m inside the fence): the controller vibrates, the pose is still published.
+  * **Outside the fence:** the controller vibrates and the pose is held back, so the teleop bridge disengages (see `pose_timeout`). Buttons are always published, so a clutch release is never missed.
+  * The fence is ignored, with a warning, if it was calibrated in another frame than the one the driver publishes in (e.g. with a different reference lighthouse). Delete `config/workspace.yaml` to turn it off.
 * **OneEuro Filtering:** Implements a high-speed, low-latency OneEuro filter to eliminate high-frequency hand jitter before it reaches the robot arm.
 
 ### 📊 Data Outputs & TF Tree
@@ -182,6 +192,8 @@ This node sits between the raw Vive Driver and your robot's Cartesian controller
 To provide the most intuitive experience, the bridge treats position and orientation differently:
 
 1. **Relative Translation (The Mouse Metaphor):** Position is calculated as a delta from the moment the clutch (the `trigger` button) is engaged. This allows you to "ratchet" the robot's position, moving it large distances through multiple small hand strokes while staying in a comfortable physical stance.
+   * The clutch engages when the trigger reaches `clutch_engage_threshold` (default `0.95`) and releases below `clutch_release_threshold` (default `0.90`). The gap stops it from flickering when the trigger hovers near a full pull. Set both to `1.0` for the original full-pull-only behaviour.
+   * If no pose arrives for `pose_timeout` seconds (default `0.3`, `0` disables it) while the clutch is engaged, e.g. tracking is lost or the controller leaves the safety fence, the bridge disengages and keeps holding the last command. Release and press the trigger again to continue; the arm never jumps to wherever the controller reappears.
 2. **Absolute Orientation (The Mirror Metaphor):** Rotation is **not relative**. For intuitive control, the robot's end-effector orientation directly mirrors the controller's orientation.
 3. **Axis Realignment (`rotation_offset`):** Because a VR controller's physical axes rarely match a robot gripper's axes, the node supports a custom `[Roll, Pitch, Yaw]` offset parameter. It applies this rotation locally using Scipy matrix math so the robot moves exactly how your brain expects it to.
 
@@ -204,7 +216,7 @@ The Teleop Bridge automatically "demultiplexes" the VR buttons. You can map any 
 
 ### 🛡️ Trackpad Safety
 
-The node includes a `trackpad_pressed_required` parameter. If set to `true`, lightly brushing your thumb over the trackpad will output `0.0`. It will only output the X/Y coordinates to your robot if you physically *click down* on the trackpad. This is critical for preventing accidental movement commands on mobile bases or humanoids.
+The node includes a `trackpad_pressed_required` parameter. If set to `true`, lightly brushing your thumb over the trackpad will output `0.0`. It will only output the X/Y coordinates to your robot if you physically *click down* on the trackpad. This is critical for preventing accidental movement commands on mobile bases or humanoids. It only affects the `trackpad_x` / `trackpad_y` topics; the other buttons are always published as they are.
 
 ---
 
@@ -297,6 +309,16 @@ Once you have written your `my_robot.launch.py` and saved it in the `/launch` fo
 1. Open `docker-compose.yml`.
 2. Copy an existing robot block (like `tiago:`), rename it, and change the `command:` to run your new launch file.
 3. Open `Makefile` and add a quick launch rule (e.g., `make my_robot: gui-perms \n docker compose --profile my_robot up`).
+
+## 🧪 Tests
+
+The tests run without SteamVR or hardware: `test/fake_openvr.py` stands in for OpenVR. From the repository root, with the image you already use:
+
+```bash
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONDONTWRITEBYTECODE=1 --entrypoint bash \
+  -v "$PWD":/work -w /work registry.gitlab.inria.fr/eurobin-horizon/code/ros2-vive-controller/vive-controller:latest \
+  -lc "source /opt/ros/humble/setup.bash && python3 -m pytest -q -p no:cacheprovider test"
+```
 
 ## 👥 Maintainers & Contributors
 
